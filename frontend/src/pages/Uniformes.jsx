@@ -295,11 +295,18 @@ export default function Uniformes() {
     } finally { setSaving(false); }
   };
 
-  // Grouper par statut
+  // Grouper par statut, triés par type puis taille
+  const typeOrder = TYPES_UNIFORMES.map(t => t.label);
+  const sortByType = arr => [...arr].sort((a, b) => {
+    const ia = typeOrder.indexOf(a.nom);
+    const ib = typeOrder.indexOf(b.nom);
+    if (ia !== ib) return ia - ib;
+    return a.taille.localeCompare(b.taille);
+  });
   const uniformesParStatut = {
-    DISPONIBLE: uniformes.filter(u => u.statut === 'DISPONIBLE'),
-    PRETE: uniformes.filter(u => u.statut === 'PRETE'),
-    ATTRIBUE: uniformes.filter(u => u.statut === 'ATTRIBUE'),
+    DISPONIBLE: sortByType(uniformes.filter(u => u.statut === 'DISPONIBLE')),
+    PRETE:      sortByType(uniformes.filter(u => u.statut === 'PRETE')),
+    ATTRIBUE:   sortByType(uniformes.filter(u => u.statut === 'ATTRIBUE')),
   };
 
   return (

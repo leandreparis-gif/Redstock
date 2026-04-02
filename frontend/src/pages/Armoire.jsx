@@ -310,9 +310,13 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
 
         {isAdmin && (
           <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <button className="btn-icon p-1 text-xs font-medium text-blue-500 hover:text-blue-700"
+            <button
+              onClick={() => onTransfer(stock, tiroirId)}
+              className="text-xs px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
               title="Transférer vers un lot"
-              onClick={() => onTransfer(stock, tiroirId)}>→</button>
+            >
+              → Lot
+            </button>
             <button className="btn-icon p-1" onClick={() => onEdit(stock)}><IconEdit size={13} /></button>
             <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}><IconTrash size={13} /></button>
           </div>

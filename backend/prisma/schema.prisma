@@ -48,7 +48,7 @@ enum Qualification {
 
 enum Role {
   ADMIN
-  CONTROLEUR
+  CONTRIBUTEUR
 }
 
 // ─── ARTICLE (CATALOGUE) ──────────────────────────────────────────────────────

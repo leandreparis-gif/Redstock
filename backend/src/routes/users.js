@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Qualification invalide' });
   }
 
-  if (!['ADMIN', 'CONTROLEUR'].includes(role)) {
+  if (!['ADMIN', 'CONTRIBUTEUR'].includes(role)) {
     return res.status(400).json({ error: 'Rôle invalide' });
   }
 

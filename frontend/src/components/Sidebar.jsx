@@ -96,7 +96,7 @@ export default function Sidebar({ open, onClose }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-crf-texte truncate">{user?.prenom}</p>
               <p className="text-xs text-gray-400 truncate">
-                {user?.qualification} · {user?.role === 'ADMIN' ? 'Admin' : 'Contrôleur'}
+                {user?.qualification} · {user?.role === 'ADMIN' ? 'Admin' : 'Contributeur'}
               </p>
             </div>
           </div>

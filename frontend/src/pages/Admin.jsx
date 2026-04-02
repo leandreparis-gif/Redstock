@@ -151,7 +151,7 @@ function UserModal({ initial, onSave, onClose, loading }) {
   const [form, setForm] = useState({
     prenom: initial?.prenom || '',
     qualification: initial?.qualification || 'PSE2',
-    role: initial?.role || 'CONTROLEUR',
+    role: initial?.role || 'CONTRIBUTEUR',
     login: initial?.login || '',
     password: '',
   });
@@ -182,7 +182,7 @@ function UserModal({ initial, onSave, onClose, loading }) {
         <div>
           <label className="label">Rôle</label>
           <select className="select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-            <option value="CONTROLEUR">Contrôleur</option>
+            <option value="CONTRIBUTEUR">Contributeur</option>
             <option value="ADMIN">Admin</option>
           </select>
         </div>
@@ -245,7 +245,7 @@ function AdminUtilisateurs() {
     catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
   };
 
-  const roleLabel = { ADMIN: '🔑 Admin', CONTROLEUR: 'Contrôleur' };
+  const roleLabel = { ADMIN: '🔑 Admin', CONTRIBUTEUR: 'Contributeur' };
 
   return (
     <div>

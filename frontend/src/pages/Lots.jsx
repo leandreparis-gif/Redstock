@@ -3,6 +3,7 @@ import PageHeader from '../components/PageHeader';
 import { IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight, IconCopy } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
 import { useLots } from '../hooks/useLots';
+import { uploadLotPhoto } from '../lib/supabase';
 import { useArticles } from '../hooks/useArticles';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,6 +34,29 @@ function Modal({ title, onClose, children }) {
 
 function LotModal({ initial, onSave, onClose, loading }) {
   const [form, setForm] = useState({ nom: initial?.nom || '' });
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(initial?.photo_url || null);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePhoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSave = async () => {
+    let photo_url = initial?.photo_url || null;
+    if (photoFile && initial?.id) {
+      setUploading(true);
+      try { photo_url = await uploadLotPhoto(photoFile, initial.id); }
+      catch { /* ignore upload error */ }
+      finally { setUploading(false); }
+    }
+    onSave({ ...form, photo_url, _pendingPhoto: photoFile });
+  };
+
+  const isBusy = loading || uploading;
 
   return (
     <Modal title={initial ? 'Modifier le lot' : 'Nouveau lot'} onClose={onClose}>
@@ -41,11 +65,31 @@ function LotModal({ initial, onSave, onClose, loading }) {
         <input className="input" value={form.nom}
           onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
       </div>
+      <div>
+        <label className="label">Photo du lot</label>
+        <div className="flex items-center gap-3">
+          {photoPreview && (
+            <img src={photoPreview} alt="aperçu" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+          )}
+          <label className="btn-secondary cursor-pointer text-sm">
+            📷 {photoPreview ? 'Changer' : 'Ajouter une photo'}
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+          </label>
+          {photoPreview && (
+            <button className="text-xs text-red-500" onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}>
+              Supprimer
+            </button>
+          )}
+        </div>
+        {!initial && photoFile && (
+          <p className="text-xs text-gray-400 mt-1">La photo sera uploadée après la création du lot.</p>
+        )}
+      </div>
       <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!form.nom || loading}
-          onClick={() => onSave(form)}>
-          {loading ? 'Enregistrement…' : 'Enregistrer'}
+        <button className="btn-primary" disabled={!form.nom || isBusy}
+          onClick={handleSave}>
+          {isBusy ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </div>
     </Modal>
@@ -265,6 +309,10 @@ function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPo
           ? <IconChevronDown size={18} className="text-gray-400" />
           : <IconChevronRight size={18} className="text-gray-400" />
         }
+        {lot.photo_url && (
+          <img src={lot.photo_url} alt={lot.nom}
+            className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+        )}
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-crf-texte">{lot.nom}</h2>
         </div>
@@ -345,11 +393,21 @@ export default function Lots() {
 
   const closeModal = () => setModal(null);
 
-  const handleSaveLot = async (form) => {
+  const handleSaveLot = async ({ _pendingPhoto, ...form }) => {
     setSaving(true);
     try {
-      if (modal.data) await updateLot(modal.data.id, form);
-      else            await createLot(form);
+      if (modal.data) {
+        await updateLot(modal.data.id, form);
+      } else {
+        // Créer le lot, puis uploader la photo si présente
+        const newLot = await createLot(form);
+        if (_pendingPhoto && newLot?.id) {
+          try {
+            const photo_url = await uploadLotPhoto(_pendingPhoto, newLot.id);
+            await updateLot(newLot.id, { nom: form.nom, photo_url });
+          } catch { /* ignore */ }
+        }
+      }
       showToast(modal.data ? 'Lot modifié' : 'Lot créé');
       closeModal();
     } catch (e) {

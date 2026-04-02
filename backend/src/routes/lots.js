@@ -120,7 +120,7 @@ router.post('/', requireAdmin, async (req, res) => {
  * PUT /api/lots/:id
  */
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { nom } = req.body;
+  const { nom, photo_url } = req.body;
   try {
     const existing = await prisma.lot.findFirst({
       where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
@@ -129,7 +129,10 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     const lot = await prisma.lot.update({
       where: { id: req.params.id },
-      data: { ...(nom !== undefined && { nom }) },
+      data: {
+        ...(nom !== undefined && { nom }),
+        ...(photo_url !== undefined && { photo_url }),
+      },
     });
     res.json(lot);
   } catch (err) {

@@ -118,6 +118,7 @@ model StockTiroir {
 model Lot {
   id             String   @id @default(cuid())
   nom            String
+  photo_url      String?
   qr_code_token  String   @unique @default(uuid())
   created_at     DateTime @default(now())
 

@@ -191,6 +191,10 @@ export default function ControleLot() {
           <div className="mb-4">
             <LogoCRF height={44} />
           </div>
+          {lot.photo_url && (
+            <img src={lot.photo_url} alt={lot.nom}
+              className="w-full max-h-48 object-cover rounded-xl mb-4" />
+          )}
           <h1 className="font-bold text-xl text-gray-800">{lot.nom}</h1>
           <p className="text-sm text-gray-400 mt-1">Contrôle de matériel</p>
         </div>

@@ -24,30 +24,54 @@ function Modal({ title, onClose, children }) {
 
 // ─── Modal Uniforme ──────────────────────────────────────────────────────────
 
+const TYPES_UNIFORMES = [
+  { label: 'Polo manche longue', taille: true },
+  { label: 'Polo manche courte', taille: true },
+  { label: 'Multipoche', taille: true },
+  { label: 'Pantalon', taille: true },
+  { label: 'Polaire', taille: true },
+  { label: 'Parka', taille: true },
+  { label: 'Softshell', taille: true },
+  { label: 'Bonnet', taille: false },
+  { label: 'Tour de cou', taille: false },
+  { label: 'Casquette', taille: false },
+  { label: 'Scratch secouriste', taille: false },
+  { label: 'Scratch équipier secouriste', taille: false },
+  { label: 'Scratch CI', taille: false },
+];
+
 function UniformeModal({ initial, onSave, onClose, loading }) {
+  const typeInitial = TYPES_UNIFORMES.find(t => t.label === initial?.nom) || TYPES_UNIFORMES[0];
   const [form, setForm] = useState({
-    nom: initial?.nom || '',
+    nom: initial?.nom || TYPES_UNIFORMES[0].label,
     taille: initial?.taille || 'M',
     etat: initial?.etat || 'NEUF',
   });
 
-  const tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+  const typeSelectionne = TYPES_UNIFORMES.find(t => t.label === form.nom) || TYPES_UNIFORMES[0];
+  const tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'TU'];
   const etats = ['NEUF', 'BON', 'USE'];
+
+  const handleNomChange = (nom) => {
+    const type = TYPES_UNIFORMES.find(t => t.label === nom);
+    setForm(f => ({ ...f, nom, taille: type?.taille ? f.taille : 'TU' }));
+  };
 
   return (
     <Modal title={initial ? 'Modifier l\'uniforme' : 'Ajouter un uniforme'} onClose={onClose}>
       <div>
-        <label className="label">Nom *</label>
-        <input className="input" value={form.nom}
-          onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
-          placeholder="ex : Polo CRF" />
+        <label className="label">Type *</label>
+        <select className="select" value={form.nom} onChange={e => handleNomChange(e.target.value)}>
+          {TYPES_UNIFORMES.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Taille *</label>
           <select className="select" value={form.taille}
-            onChange={e => setForm(f => ({ ...f, taille: e.target.value }))}>
+            onChange={e => setForm(f => ({ ...f, taille: e.target.value }))}
+            disabled={!typeSelectionne.taille}>
             {tailles.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>

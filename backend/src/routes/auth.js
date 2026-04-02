@@ -21,7 +21,7 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.utilisateur.findUnique({
       where: { login },
       include: { unite_locale: { select: { id: true, nom: true } } },
     });
@@ -74,7 +74,7 @@ router.get('/me', async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.utilisateur.findUnique({
       where: { id: decoded.id },
       select: {
         id: true,

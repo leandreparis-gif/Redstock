@@ -78,34 +78,58 @@ function PochetteModal({ initial, lotNom, onSave, onClose, loading }) {
 // ─── Modal QR Code ────────────────────────────────────────────────────────────
 
 function QRCodeModal({ lot, onClose }) {
-  const qrUrl = `${window.location.origin}/qr/${lot.qr_code_token}`;
+  const qrUrl = `${window.location.origin}/controle/lot/${lot.qr_code_token}`;
+  const canvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    import('qrcode').then(QRCode => {
+      if (canvasRef.current) {
+        QRCode.toCanvas(canvasRef.current, qrUrl, { width: 220, margin: 2 });
+      }
+    });
+  }, [qrUrl]);
+
+  const handlePrint = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <html><head><title>QR — ${lot.nom}</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+        img { display: block; margin: 0 auto 16px; }
+        h2 { font-size: 20px; margin-bottom: 4px; }
+        p { font-size: 13px; color: #666; }
+        @media print { button { display: none; } }
+      </style></head>
+      <body>
+        <img src="${dataUrl}" width="220" />
+        <h2>${lot.nom}</h2>
+        <p>Scannez pour contrôler le matériel</p>
+        <p style="font-size:10px;color:#aaa;margin-top:8px">${qrUrl}</p>
+        <br/><button onclick="window.print()">🖨 Imprimer</button>
+        <script>window.onload=()=>window.print()</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
 
   return (
     <Modal title={`QR Code — ${lot.nom}`} onClose={onClose}>
       <div className="text-center">
-        <p className="text-sm text-gray-500 mb-4">Scannez ce code pour accéder à la page de contrôle du lot.</p>
-
-        {/* Placeholder QR — implémentation avec qrcode.react ou similaire */}
-        <div className="bg-gray-100 rounded p-6 mb-4 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-xs text-gray-400 mb-2">QR Code</p>
-            <p className="text-gray-400 font-mono text-xs break-all">{lot.qr_code_token}</p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs">
-            <input type="text" readOnly value={qrUrl} className="input text-xs py-1 flex-1 bg-white" />
-            <button onClick={() => copyToClipboard(qrUrl)} className="btn-icon p-1">
-              <IconCopy size={13} />
-            </button>
-          </div>
-          <p className="text-xs text-gray-400">Token : <code className="bg-gray-50 px-1 rounded">{lot.qr_code_token}</code></p>
+        <p className="text-sm text-gray-500 mb-4">Scannez ce code pour accéder à la page de contrôle sans connexion.</p>
+        <canvas ref={canvasRef} className="mx-auto rounded-lg" />
+        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs mt-4">
+          <input type="text" readOnly value={qrUrl} className="input text-xs py-1 flex-1 bg-white" />
+          <button onClick={() => copyToClipboard(qrUrl)} className="btn-icon p-1">
+            <IconCopy size={13} />
+          </button>
         </div>
       </div>
-
-      <div className="flex justify-end pt-2">
+      <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Fermer</button>
+        <button className="btn-primary" onClick={handlePrint}>🖨 Imprimer</button>
       </div>
     </Modal>
   );

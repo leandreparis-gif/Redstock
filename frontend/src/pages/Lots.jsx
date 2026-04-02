@@ -210,11 +210,90 @@ function QRCodeModal({ lot, onClose }) {
   );
 }
 
+// ─── Modal Stock Pochette ─────────────────────────────────────────────────────
+
+function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, loading }) {
+  const [articleId, setArticleId] = useState(initial?.article?.id || '');
+  const [lots, setLots] = useState(
+    initial?.lots?.length ? initial.lots
+      : [{ label: '', date_peremption: '', quantite: 1 }]
+  );
+
+  const article = articles.find(a => a.id === articleId);
+  const addLot    = () => setLots(l => [...l, { label: '', date_peremption: '', quantite: 1 }]);
+  const removeLot = (i) => setLots(l => l.filter((_, j) => j !== i));
+  const updateLot = (i, field, val) =>
+    setLots(l => l.map((lot, j) => j === i ? { ...lot, [field]: val } : lot));
+  const totalLots = lots.reduce((s, l) => s + (parseInt(l.quantite) || 0), 0);
+
+  const handleSave = () => {
+    const lotsClean = lots
+      .filter(l => l.label.trim())
+      .map(l => ({ label: l.label.trim(), date_peremption: l.date_peremption || null, quantite: parseInt(l.quantite) || 0 }));
+    onSave({ articleId, quantite_actuelle: totalLots, lots: lotsClean });
+  };
+
+  return (
+    <Modal title={`${initial ? 'Modifier' : 'Ajouter'} un article — ${pochetteNom}`} onClose={onClose}>
+      <div>
+        <label className="label">Article *</label>
+        <select className="select" value={articleId} onChange={e => setArticleId(e.target.value)} disabled={!!initial}>
+          <option value="">Choisir un article…</option>
+          {articles.map(a => <option key={a.id} value={a.id}>{a.nom} ({a.categorie})</option>)}
+        </select>
+      </div>
+
+      {articleId && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="label mb-0">
+              Lots
+              {article?.est_perimable && <span className="ml-2 text-xs text-orange-500 font-normal">— article périmable</span>}
+            </p>
+            <button type="button" onClick={addLot} className="text-xs text-crf-rouge hover:underline font-medium">
+              + Ajouter un lot
+            </button>
+          </div>
+          <div className="space-y-2">
+            {lots.map((lot, i) => (
+              <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-md p-2">
+                <div className="flex-1 space-y-1">
+                  <input className="input text-xs py-1" placeholder="Référence lot *"
+                    value={lot.label} onChange={e => updateLot(i, 'label', e.target.value)} />
+                  <div className="flex gap-2">
+                    {article?.est_perimable && (
+                      <input type="date" className="input text-xs py-1 flex-1"
+                        value={lot.date_peremption} onChange={e => updateLot(i, 'date_peremption', e.target.value)} />
+                    )}
+                    <input type="number" min="0" className="input text-xs py-1 w-20"
+                      placeholder="Qté" value={lot.quantite} onChange={e => updateLot(i, 'quantite', e.target.value)} />
+                  </div>
+                </div>
+                {lots.length > 1 && (
+                  <button onClick={() => removeLot(i)} className="text-gray-300 hover:text-red-500 mt-1">×</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Quantité totale : <strong>{totalLots}</strong></p>
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end pt-2">
+        <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        <button className="btn-primary" disabled={!articleId || totalLots < 0 || loading} onClick={handleSave}>
+          {loading ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Pochette Card ────────────────────────────────────────────────────────────
 
 import apiClient from '../api/client';
 
-function StockRow({ stock, pochetteId, isAdmin }) {
+function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
   const [min, setMin] = useState(stock.quantite_minimum ?? 0);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -236,54 +315,66 @@ function StockRow({ stock, pochetteId, isAdmin }) {
   };
 
   const isBelowMin = stock.quantite_actuelle < min && min > 0;
+  const lots = stock.lots || [];
 
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <div className="flex-1 min-w-0">
-        <span className="text-gray-700">{stock.article.nom}</span>
-        {isBelowMin && <span className="ml-1 text-xs text-red-500 font-medium">⚠ sous le min.</span>}
+    <div className="py-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <span className="text-gray-700 font-medium">{stock.article.nom}</span>
+          {isBelowMin && <span className="ml-1 text-xs text-red-500 font-medium">⚠ sous le min.</span>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <PeremptionBadge lots={stock.lots} />
+          <span className="text-gray-800 font-semibold">×{stock.quantite_actuelle}</span>
+          {isAdmin ? (
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400 text-xs">min.</span>
+              {editing ? (
+                <input type="number" min="0" autoFocus
+                  className="w-12 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
+                  defaultValue={min}
+                  onBlur={e => saveMin(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
+                />
+              ) : (
+                <button onClick={() => setEditing(true)}
+                  className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                    isBelowMin ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  } ${saving ? 'opacity-50' : ''}`}>
+                  {min}
+                </button>
+              )}
+              <button onClick={() => onEdit(stock)} className="btn-icon p-0.5 ml-1"><IconEdit size={12} /></button>
+              <button onClick={() => onDelete(stock)} className="btn-icon p-0.5 hover:text-red-500"><IconTrash size={12} /></button>
+            </div>
+          ) : (
+            min > 0 && (
+              <span className={`text-xs ${isBelowMin ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                min. {min}
+              </span>
+            )
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0 mr-2">
-        <PeremptionBadge lots={stock.lots} />
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span className="text-gray-800 font-semibold">×{stock.quantite_actuelle}</span>
-        {isAdmin ? (
-          <div className="flex items-center gap-1">
-            <span className="text-gray-400 text-xs">min.</span>
-            {editing ? (
-              <input
-                type="number" min="0"
-                className="w-12 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
-                defaultValue={min}
-                autoFocus
-                onBlur={e => saveMin(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
-              />
-            ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                  isBelowMin ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                } ${saving ? 'opacity-50' : ''}`}
-              >
-                {min}
-              </button>
-            )}
-          </div>
-        ) : (
-          min > 0 && (
-            <span className={`text-xs ${isBelowMin ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-              min. {min}
-            </span>
-          )
-        )}
-      </div>
+      {lots.length > 0 && (
+        <div className="mt-1 ml-1 space-y-0.5">
+          {lots.map((lot, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="font-mono truncate max-w-[120px]">{lot.label}</span>
+              <span className="text-gray-400">×{lot.quantite}</span>
+              {lot.date_peremption && (
+                <span className="text-gray-400">exp. {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete }) {
+function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock, onEditStock, onDeleteStock }) {
   const [open, setOpen] = useState(false);
   const stockCount = pochette.stocks?.length || 0;
 
@@ -313,14 +404,26 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete }) {
         )}
       </button>
 
-      {open && pochette.stocks?.length > 0 && (
-        <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 text-xs divide-y divide-gray-100">
-          {isAdmin && (
-            <p className="text-gray-400 pb-1.5 text-xs italic">Cliquer sur le minimum pour le modifier</p>
+      {open && (
+        <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 divide-y divide-gray-100">
+          {pochette.stocks?.length === 0 && !isAdmin && (
+            <p className="text-xs text-gray-400 py-2 text-center">Aucun article.</p>
           )}
-          {pochette.stocks.map(stock => (
-            <StockRow key={stock.id} stock={stock} pochetteId={pochette.id} isAdmin={isAdmin} />
+          {pochette.stocks?.map(stock => (
+            <StockRow key={stock.id} stock={stock} pochetteId={pochette.id} isAdmin={isAdmin}
+              onEdit={onEditStock} onDelete={onDeleteStock} />
           ))}
+          {isAdmin && (
+            <button
+              onClick={() => onAddStock(pochette)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-md
+                         border-2 border-dashed border-gray-200 text-gray-400 text-xs
+                         hover:border-crf-rouge hover:text-crf-rouge transition-colors"
+            >
+              <IconPlus size={13} />
+              Ajouter un article
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -329,7 +432,7 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete }) {
 
 // ─── Lot Card ─────────────────────────────────────────────────────────────────
 
-function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPochette, onDeletePochette, onShowQR }) {
+function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPochette, onDeletePochette, onShowQR, onAddStock, onEditStock, onDeleteStock }) {
   const [open, setOpen] = useState(true);
   const pochetteCount = lot.pochettes?.length || 0;
 
@@ -398,6 +501,9 @@ function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPo
                 isAdmin={isAdmin}
                 onEdit={() => onEditPochette(pochette, lot)}
                 onDelete={() => onDeletePochette(pochette, lot)}
+                onAddStock={onAddStock}
+                onEditStock={onEditStock}
+                onDeleteStock={onDeleteStock}
               />
             ))
           )}
@@ -411,14 +517,14 @@ function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPo
 
 export default function Lots() {
   const { isAdmin } = useAuth();
-  const { lots, loading, error, fetch, createLot, updateLot, deleteLot, createPochette, updatePochette, deletePochette } = useLots();
-  const { articles } = useArticles();
+  const { lots, loading, error, fetch, createLot, updateLot, deleteLot, createPochette, updatePochette, deletePochette, upsertStockPochette, deleteStockPochette } = useLots();
+  const { articles, fetch: fetchArticles } = useArticles();
 
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetch(); fetchArticles(); }, [fetch, fetchArticles]);
 
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
@@ -476,6 +582,31 @@ export default function Lots() {
     try {
       await deletePochette(lot.id, pochette.id);
       showToast('Pochette supprimée');
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Erreur', 'error');
+    }
+  };
+
+  const handleSaveStock = async ({ articleId, quantite_actuelle, lots: lotsData }) => {
+    setSaving(true);
+    try {
+      await upsertStockPochette(modal.context.pochetteId, articleId, { quantite_actuelle, lots: lotsData });
+      showToast('Stock mis à jour');
+      closeModal();
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Erreur', 'error');
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteStock = async (stock) => {
+    const pochette = lots.flatMap(l => l.pochettes || []).find(p =>
+      (p.stocks || []).some(s => s.id === stock.id)
+    );
+    if (!pochette) return;
+    if (!confirm(`Retirer "${stock.article.nom}" de la pochette ?`)) return;
+    try {
+      await deleteStockPochette(pochette.id, stock.article_id);
+      showToast('Article retiré');
     } catch (e) {
       showToast(e.response?.data?.error || 'Erreur', 'error');
     }
@@ -539,6 +670,12 @@ export default function Lots() {
               onEditPochette={(p, l) => setModal({ type: 'pochette', data: p, context: { lotId: l.id, lotNom: l.nom } })}
               onDeletePochette={handleDeletePochette}
               onShowQR={(l) => setModal({ type: 'qrcode', data: l })}
+              onAddStock={(p) => setModal({ type: 'stock', context: { pochetteId: p.id, pochetteNom: p.nom } })}
+              onEditStock={(s) => {
+                const p = lots.flatMap(l => l.pochettes || []).find(po => (po.stocks || []).some(st => st.id === s.id));
+                setModal({ type: 'stock', data: s, context: { pochetteId: p?.id, pochetteNom: p?.nom } });
+              }}
+              onDeleteStock={handleDeleteStock}
             />
           ))}
         </div>
@@ -566,6 +703,17 @@ export default function Lots() {
 
       {modal?.type === 'qrcode' && (
         <QRCodeModal lot={modal.data} onClose={closeModal} />
+      )}
+
+      {modal?.type === 'stock' && (
+        <StockPochetteModal
+          pochetteNom={modal.context?.pochetteNom}
+          articles={articles}
+          initial={modal.data}
+          onSave={handleSaveStock}
+          onClose={closeModal}
+          loading={saving}
+        />
       )}
 
       {/* ── Toast ──────────────────────────────────────────────────── */}

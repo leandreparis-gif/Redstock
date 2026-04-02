@@ -225,40 +225,76 @@ function LotRow({ lot }) {
 
 // ─── Ligne article dans un tiroir ─────────────────────────────────────────────
 
+function MinEditor({ article, isAdmin }) {
+  const [min, setMin] = useState(article.quantite_min ?? 0);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveMin = async (val) => {
+    const newVal = Math.max(0, parseInt(val) || 0);
+    setMin(newVal);
+    setEditing(false);
+    setSaving(true);
+    try {
+      await apiClient.put(`/articles/${article.id}`, { ...article, quantite_min: newVal });
+      article.quantite_min = newVal;
+    } catch {
+      setMin(article.quantite_min ?? 0);
+    } finally { setSaving(false); }
+  };
+
+  if (!isAdmin) return <span className="text-xs text-gray-400">min. {min}</span>;
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-gray-400">min.</span>
+      {editing ? (
+        <input type="number" min="0" autoFocus
+          className="w-12 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
+          defaultValue={min}
+          onBlur={e => saveMin(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
+        />
+      ) : (
+        <button onClick={e => { e.stopPropagation(); setEditing(true); }}
+          className={`text-xs px-1.5 py-0.5 rounded font-medium ${saving ? 'opacity-50' : ''}
+            ${min === 0 ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}>
+          {min}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete }) {
   const { article, quantite_actuelle, lots } = stock;
   const sousMin = quantite_actuelle < article.quantite_min;
   const pire    = pireStatutStock(lots, article.est_perimable);
   const urgent  = pire === 'perime' || pire === 'critique';
-  const [open, setOpen] = useState(urgent); // déplie automatiquement si problème
+  const [open, setOpen] = useState(urgent);
 
   return (
     <div className={`border rounded-md overflow-hidden ${urgent ? 'border-red-200' : 'border-gray-100'}`}>
-      {/* En-tête article */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50
-                   transition-colors text-left"
+        className="w-full flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors text-left"
       >
         {open
           ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
           : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
         }
+        <span className="flex-1 text-sm font-medium text-crf-texte truncate">{article.nom}</span>
 
-        <span className="flex-1 text-sm font-medium text-crf-texte truncate">
-          {article.nom}
-        </span>
-
-        {/* Quantité vs min */}
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-          sousMin
-            ? 'bg-yellow-100 text-yellow-700'
-            : 'bg-green-100 text-green-700'
+          sousMin ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
         }`}>
-          {quantite_actuelle} / {article.quantite_min} min
+          {quantite_actuelle}
         </span>
 
-        {/* Badge pire péremption */}
+        <div onClick={e => e.stopPropagation()}>
+          <MinEditor article={article} isAdmin={isAdmin} />
+        </div>
+
         {article.est_perimable && <PeremptionBadge date={
           lots?.reduce((worst, l) => {
             if (!worst) return l.date_peremption;
@@ -269,24 +305,16 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
           }, null)
         } />}
 
-        {/* Catégorie */}
-        <span className="text-[11px] text-gray-400 hidden sm:block flex-shrink-0">
-          {article.categorie}
-        </span>
+        <span className="text-[11px] text-gray-400 hidden sm:block flex-shrink-0">{article.categorie}</span>
 
         {isAdmin && (
           <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <button className="btn-icon p-1" onClick={() => onEdit(stock)}>
-              <IconEdit size={13} />
-            </button>
-            <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}>
-              <IconTrash size={13} />
-            </button>
+            <button className="btn-icon p-1" onClick={() => onEdit(stock)}><IconEdit size={13} /></button>
+            <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}><IconTrash size={13} /></button>
           </div>
         )}
       </button>
 
-      {/* Lots détaillés */}
       {open && lots?.length > 0 && (
         <div className="border-t border-gray-100 bg-gray-50/50 px-2 py-1.5 space-y-0.5">
           {lots.map((lot, i) => <LotRow key={i} lot={lot} />)}
@@ -729,20 +757,56 @@ export default function Armoire() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  const exportCSV = () => {
+    const rows = [['Article', 'Catégorie', 'Armoire', 'Tiroir', 'Quantité actuelle', 'Minimum requis', 'Manquant']];
+    for (const armoire of armoires) {
+      for (const tiroir of armoire.tiroirs || []) {
+        for (const stock of tiroir.stocks || []) {
+          if (stock.quantite_actuelle < stock.article.quantite_min) {
+            rows.push([
+              stock.article.nom,
+              stock.article.categorie,
+              armoire.nom,
+              tiroir.nom,
+              stock.quantite_actuelle,
+              stock.article.quantite_min,
+              stock.article.quantite_min - stock.quantite_actuelle,
+            ]);
+          }
+        }
+      }
+    }
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `commande_pharmacie_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <PageHeader
         title="Pharmacie"
         subtitle="Vue arborescence du stock en armoire"
-        actions={isAdmin && (
-          <button
-            className="btn-primary flex items-center gap-2"
-            onClick={() => setModal({ type: 'armoire' })}
-          >
-            <IconPlus size={16} />
-            Nouvelle armoire
-          </button>
-        )}
+        actions={
+          <div className="flex gap-2">
+            <button className="btn-secondary flex items-center gap-2" onClick={exportCSV}>
+              📥 Exporter liste à commander
+            </button>
+            {isAdmin && (
+              <button
+                className="btn-primary flex items-center gap-2"
+                onClick={() => setModal({ type: 'armoire' })}
+              >
+                <IconPlus size={16} />
+                Nouvelle armoire
+              </button>
+            )}
+          </div>
+        }
       />
 
       {/* État chargement / erreur */}

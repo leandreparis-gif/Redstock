@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {
+    "build": "npx prisma generate",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "db:migrate": "npx prisma migrate dev",

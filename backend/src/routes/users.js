@@ -18,7 +18,7 @@ router.use(authMiddleware, requireAdmin);
  */
 router.get('/', async (req, res) => {
   try {
-    const users = await prisma.utilisateur.findMany({
+    const users = await prisma.user.findMany({
       where: { unite_locale_id: req.user.unite_locale_id },
       select: {
         id: true,
@@ -58,14 +58,14 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const existing = await prisma.utilisateur.findUnique({ where: { login } });
+    const existing = await prisma.user.findUnique({ where: { login } });
     if (existing) {
       return res.status(409).json({ error: 'Cet identifiant est déjà utilisé' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.utilisateur.create({
+    const user = await prisma.user.create({
       data: {
         prenom,
         qualification,
@@ -92,12 +92,12 @@ router.put('/:id', async (req, res) => {
   const { prenom, qualification, role } = req.body;
 
   try {
-    const user = await prisma.utilisateur.findFirst({
+    const user = await prisma.user.findFirst({
       where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
     });
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
-    const updated = await prisma.utilisateur.update({
+    const updated = await prisma.user.update({
       where: { id: req.params.id },
       data: {
         ...(prenom && { prenom }),
@@ -126,13 +126,13 @@ router.patch('/:id/password', async (req, res) => {
   }
 
   try {
-    const user = await prisma.utilisateur.findFirst({
+    const user = await prisma.user.findFirst({
       where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
     });
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
     const password_hash = await bcrypt.hash(password, 10);
-    await prisma.utilisateur.update({ where: { id: req.params.id }, data: { password_hash } });
+    await prisma.user.update({ where: { id: req.params.id }, data: { password_hash } });
 
     res.json({ message: 'Mot de passe mis à jour' });
   } catch (err) {
@@ -151,12 +151,12 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    const user = await prisma.utilisateur.findFirst({
+    const user = await prisma.user.findFirst({
       where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
     });
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
-    await prisma.utilisateur.delete({ where: { id: req.params.id } });
+    await prisma.user.delete({ where: { id: req.params.id } });
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
     console.error('[users/DELETE]', err);

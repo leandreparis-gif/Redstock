@@ -477,73 +477,132 @@ function ArmoireCard({ armoire, isAdmin, articles,
   );
 }
 
-// ─── Modal Contrôle Tiroir ────────────────────────────────────────────────────
+// ─── Helpers péremption ───────────────────────────────────────────────────────
+
+function isExpiredDate(dateStr) {
+  if (!dateStr) return false;
+  return new Date(dateStr) < new Date();
+}
+
+// ─── Modal Contrôle Tiroir — Checklist ────────────────────────────────────────
 
 function ControleModal({ tiroir, onSave, onClose, loading }) {
-  const [form, setForm] = useState({
-    controleur_prenom: '',
-    controleur_qualification: 'PSE2',
-    statut: 'CONFORME',
-    remarques: '',
+  const stocks = tiroir?.stocks || [];
+
+  // checks: { [stockId]: qty_reelle }
+  const [checks, setChecks] = useState(() => {
+    const init = {};
+    for (const s of stocks) init[s.id] = s.quantite_actuelle;
+    return init;
   });
+  const [prenom, setPrenom] = useState('');
+  const [step, setStep] = useState('checklist'); // 'checklist' | 'confirm'
+
+  const setQty = (id, val) =>
+    setChecks(c => ({ ...c, [id]: Math.max(0, parseInt(val) || 0) }));
+
+  const issues = stocks.filter(s => {
+    const seuil = s.article.quantite_min > 0 ? s.article.quantite_min : s.quantite_actuelle;
+    const qtyIssue = (checks[s.id] ?? s.quantite_actuelle) < seuil;
+    const expiredLot = (s.lots || []).some(l => isExpiredDate(l.date_peremption));
+    return qtyIssue || expiredLot;
+  });
+
+  const statut = issues.length === 0 ? 'CONFORME'
+    : issues.length < stocks.length / 2 ? 'PARTIEL'
+    : 'NON_CONFORME';
+
+  const remarquesAuto = issues.map(s => {
+    const parts = [];
+    const seuil = s.article.quantite_min > 0 ? s.article.quantite_min : s.quantite_actuelle;
+    const qty = checks[s.id] ?? s.quantite_actuelle;
+    if (qty < seuil) parts.push(`manque ${seuil - qty}`);
+    const exp = (s.lots || []).filter(l => isExpiredDate(l.date_peremption));
+    if (exp.length) parts.push('périmé');
+    return `${s.article.nom} — ${parts.join(', ')}`;
+  }).join('\n');
+
+  const handleValider = () => {
+    if (!prenom.trim()) return;
+    onSave({
+      tiroirId: tiroir.id,
+      controleur_prenom: prenom.trim(),
+      controleur_qualification: 'PSE2',
+      statut,
+      remarques: remarquesAuto || null,
+      items: stocks.map(s => ({ stock_id: s.id, qty_reelle: checks[s.id] ?? s.quantite_actuelle })),
+    });
+  };
 
   return (
     <Modal title={`Contrôle — ${tiroir?.nom}`} onClose={onClose}>
-      <div>
-        <label className="label">Prénom du contrôleur *</label>
-        <input className="input" placeholder="ex : Jean"
-          value={form.controleur_prenom}
-          onChange={e => setForm(f => ({ ...f, controleur_prenom: e.target.value }))} />
-      </div>
+      {step === 'checklist' ? (
+        <>
+          <p className="text-xs text-gray-500">Ajustez les quantités comptées avec +/−</p>
+          <div className="space-y-2">
+            {stocks.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">Aucun article dans ce tiroir.</p>
+            )}
+            {stocks.map(s => {
+              const qty = checks[s.id] ?? s.quantite_actuelle;
+              const seuil = s.article.quantite_min > 0 ? s.article.quantite_min : s.quantite_actuelle;
+              const qtyIssue = qty < seuil;
+              const expiredLot = (s.lots || []).some(l => isExpiredDate(l.date_peremption));
+              const hasIssue = qtyIssue || expiredLot;
 
-      <div>
-        <label className="label">Qualification</label>
-        <select className="select" value={form.controleur_qualification}
-          onChange={e => setForm(f => ({ ...f, controleur_qualification: e.target.value }))}>
-          <option value="PSE1">PSE1</option>
-          <option value="PSE2">PSE2</option>
-          <option value="CI">Certificat d'Instructeur</option>
-          <option value="AUTRE">Autre</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="label">Statut *</label>
-        <div className="space-y-2">
-          {[
-            { value: 'CONFORME',     label: '✓ Conforme',                color: 'bg-green-50 border-green-200' },
-            { value: 'PARTIEL',      label: '⚠ Partiellement conforme',  color: 'bg-yellow-50 border-yellow-200' },
-            { value: 'NON_CONFORME', label: '✗ Non conforme',            color: 'bg-red-50 border-red-200' },
-          ].map(opt => (
-            <label key={opt.value}
-              className={`flex items-center gap-2 p-3 border rounded cursor-pointer ${
-                form.statut === opt.value ? opt.color : 'bg-white border-gray-200'
-              }`}>
-              <input type="radio" name="statut_controle" value={opt.value}
-                checked={form.statut === opt.value}
-                onChange={e => setForm(f => ({ ...f, statut: e.target.value }))} />
-              <span className="text-sm">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="label">Remarques (optionnel)</label>
-        <textarea className="input resize-none" rows={3}
-          placeholder="Observations, anomalies constatées…"
-          value={form.remarques}
-          onChange={e => setForm(f => ({ ...f, remarques: e.target.value }))} />
-      </div>
-
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose} disabled={loading}>Annuler</button>
-        <button className="btn-primary"
-          disabled={!form.controleur_prenom.trim() || loading}
-          onClick={() => onSave({ tiroirId: tiroir.id, ...form })}>
-          {loading ? 'Enregistrement…' : 'Enregistrer le contrôle'}
-        </button>
-      </div>
+              return (
+                <div key={s.id} className={`rounded-xl p-3 flex items-center gap-3 ${hasIssue ? 'bg-red-50' : 'bg-gray-50'}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{s.article.nom}</p>
+                    <p className="text-xs text-gray-400">
+                      attendu : {s.quantite_actuelle}
+                      {s.article.quantite_min > 0 && ` · min. ${s.article.quantite_min}`}
+                    </p>
+                    {expiredLot && <p className="text-xs text-red-600 font-medium">⚠ Lot périmé</p>}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 font-bold flex items-center justify-center"
+                      onClick={() => setQty(s.id, qty - 1)}>−</button>
+                    <span className={`w-7 text-center font-bold text-sm ${qtyIssue ? 'text-red-600' : 'text-green-600'}`}>{qty}</span>
+                    <button className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 font-bold flex items-center justify-center"
+                      onClick={() => setQty(s.id, qty + 1)}>+</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button className="btn-secondary" onClick={onClose}>Annuler</button>
+            <button className="btn-primary" onClick={() => setStep('confirm')} disabled={stocks.length === 0}>
+              Terminer →
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={`rounded-xl p-4 ${statut === 'CONFORME' ? 'bg-green-50' : statut === 'PARTIEL' ? 'bg-orange-50' : 'bg-red-50'}`}>
+            <p className="font-semibold text-gray-800">
+              {statut === 'CONFORME' ? '✓ Tout est conforme' : statut === 'PARTIEL' ? '⚠ Partiellement conforme' : '✗ Non conforme'}
+            </p>
+            {issues.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-sm text-gray-700">
+                {issues.map(s => <li key={s.id}>• {s.article.nom}</li>)}
+              </ul>
+            )}
+          </div>
+          <div>
+            <label className="label">Votre prénom *</label>
+            <input className="input" placeholder="ex : Jean" autoFocus
+              value={prenom} onChange={e => setPrenom(e.target.value)} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button className="btn-secondary" onClick={() => setStep('checklist')} disabled={loading}>← Modifier</button>
+            <button className="btn-primary" disabled={!prenom.trim() || loading} onClick={handleValider}>
+              {loading ? 'Enregistrement…' : 'Valider le contrôle'}
+            </button>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
@@ -622,19 +681,21 @@ export default function Armoire() {
   };
 
   // ── Handler contrôle ────────────────────────────────────────────────────
-  const handleSaveControle = async ({ tiroirId, controleur_prenom, controleur_qualification, statut, remarques }) => {
+  const handleSaveControle = async ({ tiroirId, controleur_prenom, controleur_qualification, statut, remarques, items }) => {
     setSaving(true);
     try {
       await apiClient.post('/controles', {
         type: 'TIROIR',
         reference_id: tiroirId,
-        controleur_prenom: controleur_prenom.trim(),
+        controleur_prenom,
         controleur_qualification,
         statut,
         remarques: remarques || null,
+        items: items || [],
       });
       showToast('Contrôle enregistré');
       closeModal();
+      fetch();
     } catch (e) {
       showToast(e.response?.data?.error || 'Erreur', 'error');
     } finally { setSaving(false); }
@@ -671,7 +732,7 @@ export default function Armoire() {
   return (
     <div>
       <PageHeader
-        title="Armoires & Tiroirs"
+        title="Pharmacie"
         subtitle="Vue arborescence du stock en armoire"
         actions={isAdmin && (
           <button

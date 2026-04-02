@@ -10,7 +10,7 @@ import {
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Tableau de bord',    Icon: IconDashboard },
-  { to: '/armoires',  label: 'Armoires & Tiroirs', Icon: IconArmoire, alertKey: true },
+  { to: '/armoires',  label: 'Pharmacie', Icon: IconArmoire, alertKey: true },
   { to: '/lots',      label: 'Lots & Sacs',        Icon: IconSac },
   { to: '/uniformes', label: 'Uniformes',          Icon: IconUniforme },
   { to: '/reporting', label: 'Reporting',          Icon: IconReporting },

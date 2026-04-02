@@ -100,9 +100,10 @@ router.post('/', async (req, res) => {
     controleur_qualification,
     statut,
     remarques,
+    items = [],
   } = req.body;
 
-  if (!type || !reference_id || !controleur_prenom || !controleur_qualification || !statut) {
+  if (!type || !reference_id || !controleur_prenom || !statut) {
     return res.status(400).json({ error: 'Champs requis manquants' });
   }
 
@@ -114,9 +115,9 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Statut invalide' });
   }
 
-  // Règle métier : signature horodatée
   const dateISO = new Date().toISOString();
-  const signature_data = `${controleur_prenom} (${controleur_qualification}) — contrôle effectué le ${dateISO}`;
+  const qual = controleur_qualification || 'PSE2';
+  const signature_data = `${controleur_prenom} (${qual}) — contrôle effectué le ${dateISO}`;
 
   try {
     const controle = await prisma.controle.create({
@@ -124,13 +125,23 @@ router.post('/', async (req, res) => {
         type,
         reference_id,
         controleur_prenom,
-        controleur_qualification,
+        controleur_qualification: qual,
         statut,
         remarques: remarques || null,
         signature_data,
         unite_locale_id: req.user.unite_locale_id,
       },
     });
+
+    // Mettre à jour les quantités des stocks tiroir
+    if (items.length > 0) {
+      await Promise.all(items.map(({ stock_id, qty_reelle }) =>
+        prisma.stockTiroir.update({
+          where: { id: stock_id },
+          data: { quantite_actuelle: Math.max(0, parseInt(qty_reelle) || 0) },
+        })
+      ));
+    }
 
     res.status(201).json(controle);
   } catch (err) {

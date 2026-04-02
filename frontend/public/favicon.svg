@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Fond blanc -->
+  <rect width="96" height="96" fill="#FFFFFF" rx="12"/>
+  <!-- Croix officielle CRF — couleur Pantone 485 C (#E30613) -->
+  <polygon fill="#E30613" points="54.9,18.3 54.9,36.6 36.7,36.6 36.7,54.9 54.9,54.9 54.9,73.3 73.2,73.3 73.2,54.9 91.4,54.9 91.4,36.6 73.2,36.6 73.2,18.3" transform="translate(-18,-18)"/>
+  <rect x="37" y="15" width="22" height="66" fill="#E30613" rx="3"/>
+  <rect x="15" y="37" width="66" height="22" fill="#E30613" rx="3"/>
+</svg>

@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── UNITÉ LOCALE ─────────────────────────────────────────────────────────────
+model UniteLocale {
+  id         String   @id @default(cuid())
+  nom        String
+  created_at DateTime @default(now())
+
+  users            User[]
+  articles         Article[]
+  armoires         Armoire[]
+  lots             Lot[]
+  controles        Controle[]
+  alertes          Alerte[]
+  uniformes        Uniforme[]
+  stockTiroirs     StockTiroir[]
+  stockPochettes   StockPochette[]
+}
+
+// ─── UTILISATEUR ──────────────────────────────────────────────────────────────
+model User {
+  id              String        @id @default(cuid())
+  prenom          String
+  qualification   Qualification
+  role            Role
+  login           String        @unique
+  password_hash   String
+  created_at      DateTime      @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale   @relation(fields: [unite_locale_id], references: [id])
+}
+
+enum Qualification {
+  PSE1
+  PSE2
+  CI
+  AUTRE
+}
+
+enum Role {
+  ADMIN
+  CONTROLEUR
+}
+
+// ─── ARTICLE (CATALOGUE) ──────────────────────────────────────────────────────
+model Article {
+  id             String   @id @default(cuid())
+  nom            String
+  description    String?
+  quantite_min   Int      @default(1)
+  categorie      String
+  est_perimable  Boolean  @default(false)
+  created_at     DateTime @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  stockTiroirs   StockTiroir[]
+  stockPochettes StockPochette[]
+  alertes        Alerte[]
+}
+
+// ─── ARMOIRE & TIROIR ─────────────────────────────────────────────────────────
+model Armoire {
+  id          String   @id @default(cuid())
+  nom         String
+  description String?
+  created_at  DateTime @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  tiroirs Tiroir[]
+}
+
+model Tiroir {
+  id          String   @id @default(cuid())
+  nom         String
+  description String?
+  created_at  DateTime @default(now())
+
+  armoire_id String
+  armoire    Armoire @relation(fields: [armoire_id], references: [id], onDelete: Cascade)
+
+  stocks StockTiroir[]
+}
+
+// StockTiroir : article dans un tiroir, avec lots multi-dates en JSON
+model StockTiroir {
+  id               String   @id @default(cuid())
+  quantite_actuelle Int     @default(0)
+  // lots: [{ label: string, date_peremption: string|null, quantite: number }]
+  lots             Json     @default("[]")
+  updated_at       DateTime @updatedAt
+
+  article_id String
+  article    Article @relation(fields: [article_id], references: [id])
+
+  tiroir_id String
+  tiroir    Tiroir  @relation(fields: [tiroir_id], references: [id], onDelete: Cascade)
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  @@unique([article_id, tiroir_id])
+}
+
+// ─── LOT & POCHETTE ───────────────────────────────────────────────────────────
+model Lot {
+  id             String   @id @default(cuid())
+  nom            String
+  qr_code_token  String   @unique @default(uuid())
+  created_at     DateTime @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  pochettes Pochette[]
+}
+
+model Pochette {
+  id         String   @id @default(cuid())
+  nom        String
+  created_at DateTime @default(now())
+
+  lot_id String
+  lot    Lot    @relation(fields: [lot_id], references: [id], onDelete: Cascade)
+
+  stocks StockPochette[]
+}
+
+// StockPochette : article dans une pochette, avec lots multi-dates en JSON
+model StockPochette {
+  id                String   @id @default(cuid())
+  quantite_actuelle Int      @default(0)
+  // lots: [{ label: string, date_peremption: string|null, quantite: number }]
+  lots              Json     @default("[]")
+  updated_at        DateTime @updatedAt
+
+  article_id String
+  article    Article  @relation(fields: [article_id], references: [id])
+
+  pochette_id String
+  pochette    Pochette @relation(fields: [pochette_id], references: [id], onDelete: Cascade)
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  @@unique([article_id, pochette_id])
+}
+
+// ─── CONTRÔLE ─────────────────────────────────────────────────────────────────
+model Controle {
+  id                     String       @id @default(cuid())
+  type                   TypeControle
+  reference_id           String       // tiroir_id ou lot_id selon le type
+  controleur_prenom      String
+  controleur_qualification Qualification
+  date_controle          DateTime     @default(now())
+  statut                 StatutControle
+  remarques              String?
+  // "PRENOM (QUALIFICATION) — contrôle effectué le DATE ISO"
+  signature_data         String
+  created_at             DateTime     @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+}
+
+enum TypeControle {
+  TIROIR
+  LOT
+}
+
+enum StatutControle {
+  CONFORME
+  NON_CONFORME
+  PARTIEL
+}
+
+// ─── ALERTE ───────────────────────────────────────────────────────────────────
+model Alerte {
+  id            String       @id @default(cuid())
+  type          TypeAlerte
+  message       String
+  date_echeance DateTime?
+  statut        StatutAlerte @default(ACTIVE)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  article_id String?
+  article    Article? @relation(fields: [article_id], references: [id])
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+}
+
+enum TypeAlerte {
+  PEREMPTION
+  STOCK_BAS
+}
+
+enum StatutAlerte {
+  ACTIVE
+  RESOLUE
+}
+
+// ─── UNIFORME ─────────────────────────────────────────────────────────────────
+model Uniforme {
+  id         String         @id @default(cuid())
+  nom        String
+  taille     TailleUniforme
+  etat       EtatUniforme
+  statut     StatutUniforme @default(DISPONIBLE)
+  created_at DateTime       @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+
+  mouvements MouvementUniforme[]
+}
+
+enum TailleUniforme {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+}
+
+enum EtatUniforme {
+  NEUF
+  BON
+  USE
+}
+
+enum StatutUniforme {
+  DISPONIBLE
+  PRETE
+  ATTRIBUE
+}
+
+// ─── MOUVEMENT UNIFORME ───────────────────────────────────────────────────────
+model MouvementUniforme {
+  id                       String          @id @default(cuid())
+  type                     TypeMouvement
+  beneficiaire_prenom      String
+  beneficiaire_qualification Qualification
+  date_mouvement           DateTime        @default(now())
+  date_retour_prevue       DateTime?       // null si attribution définitive
+  date_retour_effective    DateTime?
+  remarques                String?
+  created_at               DateTime        @default(now())
+
+  uniforme_id String
+  uniforme    Uniforme @relation(fields: [uniforme_id], references: [id], onDelete: Cascade)
+}
+
+enum TypeMouvement {
+  PRET
+  ATTRIBUTION
+  RETOUR
+}

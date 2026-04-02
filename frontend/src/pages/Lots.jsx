@@ -8,6 +8,37 @@ import { useArticles } from '../hooks/useArticles';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function getPeremptionStatut(lots) {
+  if (!lots || lots.length === 0) return null;
+  const now = new Date();
+  let worst = null;
+  for (const lot of lots) {
+    if (!lot.date_peremption) continue;
+    const d = new Date(lot.date_peremption);
+    const diff = (d - now) / (1000 * 60 * 60 * 24);
+    if (diff < 0) return 'perime';
+    if (diff <= 7) { if (worst !== 'perime') worst = 'j7'; }
+    else if (diff <= 30) { if (!worst) worst = 'j30'; }
+  }
+  return worst;
+}
+
+function PeremptionBadge({ lots }) {
+  const statut = getPeremptionStatut(lots);
+  if (!statut) return null;
+  const styles = {
+    perime: 'bg-red-100 text-red-700',
+    j7: 'bg-orange-100 text-orange-700',
+    j30: 'bg-yellow-100 text-yellow-700',
+  };
+  const labels = { perime: 'Périmé', j7: '< 7j', j30: '< 30j' };
+  return (
+    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${styles[statut]}`}>
+      {labels[statut]}
+    </span>
+  );
+}
+
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
@@ -211,6 +242,9 @@ function StockRow({ stock, pochetteId, isAdmin }) {
       <div className="flex-1 min-w-0">
         <span className="text-gray-700">{stock.article.nom}</span>
         {isBelowMin && <span className="ml-1 text-xs text-red-500 font-medium">⚠ sous le min.</span>}
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0 mr-2">
+        <PeremptionBadge lots={stock.lots} />
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
         <span className="text-gray-800 font-semibold">×{stock.quantite_actuelle}</span>

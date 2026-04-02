@@ -295,19 +295,16 @@ export default function Uniformes() {
     } finally { setSaving(false); }
   };
 
-  // Grouper par statut, triés par type puis taille
-  const typeOrder = TYPES_UNIFORMES.map(t => t.label);
-  const sortByType = arr => [...arr].sort((a, b) => {
-    const ia = typeOrder.indexOf(a.nom);
-    const ib = typeOrder.indexOf(b.nom);
-    if (ia !== ib) return ia - ib;
-    return a.taille.localeCompare(b.taille);
-  });
-  const uniformesParStatut = {
-    DISPONIBLE: sortByType(uniformes.filter(u => u.statut === 'DISPONIBLE')),
-    PRETE:      sortByType(uniformes.filter(u => u.statut === 'PRETE')),
-    ATTRIBUE:   sortByType(uniformes.filter(u => u.statut === 'ATTRIBUE')),
-  };
+  // Grouper par type (dans l'ordre TYPES_UNIFORMES), triés par taille dans chaque groupe
+  const tailleOrder = ['XS','S','M','L','XL','XXL','TU'];
+  const uniformesParType = TYPES_UNIFORMES
+    .map(t => ({
+      label: t.label,
+      items: uniformes
+        .filter(u => u.nom === t.label)
+        .sort((a, b) => tailleOrder.indexOf(a.taille) - tailleOrder.indexOf(b.taille)),
+    }))
+    .filter(g => g.items.length > 0);
 
   return (
     <div>
@@ -351,10 +348,10 @@ export default function Uniformes() {
 
       {!loading && !error && uniformes.length > 0 && (
         <div className="space-y-6">
-          {Object.entries(uniformesParStatut).map(([statut, items]) => items.length > 0 && (
-            <div key={statut}>
+          {uniformesParType.map(({ label, items }) => (
+            <div key={label}>
               <h2 className="section-label mb-3">
-                {statut === 'DISPONIBLE' ? '✓ Disponibles' : statut === 'PRETE' ? '📤 Prêtés' : '📌 Attribués'}
+                {label}
                 <span className="ml-2 text-gray-500">({items.length})</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

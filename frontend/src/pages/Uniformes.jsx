@@ -295,16 +295,21 @@ export default function Uniformes() {
     } finally { setSaving(false); }
   };
 
-  // Grouper par type (dans l'ordre TYPES_UNIFORMES), triés par taille dans chaque groupe
+  // Grouper par type, triés par taille — uniquement les DISPONIBLES
   const tailleOrder = ['XS','S','M','L','XL','XXL','TU'];
-  const uniformesParType = TYPES_UNIFORMES
+  const sortByTaille = arr => [...arr].sort((a, b) => tailleOrder.indexOf(a.taille) - tailleOrder.indexOf(b.taille));
+  const typeOrder = TYPES_UNIFORMES.map(t => t.label);
+  const sortByType = arr => [...arr].sort((a, b) => typeOrder.indexOf(a.nom) - typeOrder.indexOf(b.nom));
+
+  const stockParType = TYPES_UNIFORMES
     .map(t => ({
       label: t.label,
-      items: uniformes
-        .filter(u => u.nom === t.label)
-        .sort((a, b) => tailleOrder.indexOf(a.taille) - tailleOrder.indexOf(b.taille)),
+      items: sortByTaille(uniformes.filter(u => u.nom === t.label && u.statut === 'DISPONIBLE')),
     }))
     .filter(g => g.items.length > 0);
+
+  const pretés    = sortByType(uniformes.filter(u => u.statut === 'PRETE'));
+  const attribués = sortByType(uniformes.filter(u => u.statut === 'ATTRIBUE'));
 
   return (
     <div>
@@ -347,19 +352,50 @@ export default function Uniformes() {
       )}
 
       {!loading && !error && uniformes.length > 0 && (
-        <div className="space-y-6">
-          {uniformesParType.map(({ label, items }) => (
-            <div key={label}>
-              <h2 className="section-label mb-3">
-                {label}
-                <span className="ml-2 text-gray-500">({items.length})</span>
+        <div className="space-y-8">
+
+          {/* ── Stock disponible ── */}
+          <div>
+            <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+              Stock disponible
+              <span className="text-gray-400 font-normal text-sm">({uniformes.filter(u => u.statut === 'DISPONIBLE').length})</span>
+            </h2>
+            {stockParType.length === 0 ? (
+              <p className="text-sm text-gray-400">Aucun uniforme disponible.</p>
+            ) : (
+              <div className="space-y-4">
+                {stockParType.map(({ label, items }) => (
+                  <div key={label}>
+                    <h3 className="section-label mb-2">{label} <span className="text-gray-400">({items.length})</span></h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {items.map(uniforme => (
+                        <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
+                          onEdit={(u) => setModal({ type: 'uniforme', data: u })}
+                          onDelete={handleDeleteUniforme}
+                          onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
+                          onAttribution={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' })}
+                          onRetour={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Prêtés ── */}
+          {pretés.length > 0 && (
+            <div>
+              <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                Prêtés
+                <span className="text-gray-400 font-normal text-sm">({pretés.length})</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {items.map(uniforme => (
-                  <UniformeCard
-                    key={uniforme.id}
-                    uniforme={uniforme}
-                    isAdmin={isAdmin}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {pretés.map(uniforme => (
+                  <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
                     onEdit={(u) => setModal({ type: 'uniforme', data: u })}
                     onDelete={handleDeleteUniforme}
                     onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
@@ -369,7 +405,30 @@ export default function Uniformes() {
                 ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {/* ── Attribués ── */}
+          {attribués.length > 0 && (
+            <div>
+              <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
+                Attribués
+                <span className="text-gray-400 font-normal text-sm">({attribués.length})</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {attribués.map(uniforme => (
+                  <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
+                    onEdit={(u) => setModal({ type: 'uniforme', data: u })}
+                    onDelete={handleDeleteUniforme}
+                    onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
+                    onAttribution={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' })}
+                    onRetour={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 

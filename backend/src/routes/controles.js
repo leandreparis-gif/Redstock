@@ -142,12 +142,12 @@ router.post('/', async (req, res) => {
 /**
  * POST /api/controles/public
  * Contrôle depuis la page mobile QR (sans JWT — token du lot en body).
- * Body : { lot_token, controleur_prenom, controleur_qualification, statut, remarques }
+ * Body : { lot_token, controleur_prenom, statut, remarques, items: [{ stock_id, qty_reelle }] }
  */
 router.post('/public', async (req, res) => {
-  const { lot_token, controleur_prenom, controleur_qualification, statut, remarques } = req.body;
+  const { lot_token, controleur_prenom, statut, remarques, items = [] } = req.body;
 
-  if (!lot_token || !controleur_prenom || !controleur_qualification || !statut) {
+  if (!lot_token || !controleur_prenom || !statut) {
     return res.status(400).json({ error: 'Champs requis manquants' });
   }
 
@@ -156,20 +156,31 @@ router.post('/public', async (req, res) => {
     if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
 
     const dateISO = new Date().toISOString();
-    const signature_data = `${controleur_prenom} (${controleur_qualification}) — contrôle effectué le ${dateISO}`;
+    const signature_data = `${controleur_prenom} — contrôle effectué le ${dateISO}`;
 
+    // Créer le contrôle
     const controle = await prisma.controle.create({
       data: {
         type: 'LOT',
         reference_id: lot.id,
         controleur_prenom,
-        controleur_qualification,
+        controleur_qualification: 'PSE2',
         statut,
         remarques: remarques || null,
         signature_data,
         unite_locale_id: lot.unite_locale_id,
       },
     });
+
+    // Mettre à jour les quantités des stocks
+    if (items.length > 0) {
+      await Promise.all(items.map(({ stock_id, qty_reelle }) =>
+        prisma.stockPochette.update({
+          where: { id: stock_id },
+          data: { quantite_actuelle: Math.max(0, parseInt(qty_reelle) || 0) },
+        })
+      ));
+    }
 
     res.status(201).json(controle);
   } catch (err) {

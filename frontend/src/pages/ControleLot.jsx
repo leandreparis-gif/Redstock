@@ -31,6 +31,7 @@ function flattenItems(pochettes) {
     for (const stock of pochette.stocks || []) {
       items.push({
         id: `${pochette.id}-${stock.id}`,
+        stock_id: stock.id,
         pochette_nom: pochette.nom,
         article_nom: stock.article.nom,
         categorie: stock.article.categorie,
@@ -122,9 +123,12 @@ export default function ControleLot() {
       await apiClient.post('/controles/public', {
         lot_token: token,
         controleur_prenom: prenom.trim(),
-        controleur_qualification: 'PSE2',
         statut,
         remarques: remarquesAuto || null,
+        items: items.map(item => ({
+          stock_id: item.stock_id,
+          qty_reelle: checks[item.id]?.qty_reelle ?? item.qty_attendue,
+        })),
       });
       setStep('done');
     } catch {

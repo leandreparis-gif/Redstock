@@ -36,6 +36,7 @@ function flattenItems(pochettes) {
         article_nom: stock.article.nom,
         categorie: stock.article.categorie,
         qty_attendue: stock.quantite_actuelle,
+        qty_minimum: stock.quantite_minimum ?? 0,
         lots: stock.lots || [],
       });
     }
@@ -88,7 +89,8 @@ export default function ControleLot() {
     return items.filter(item => {
       const check = checks[item.id];
       if (!check) return false;
-      const qtyIssue = check.qty_reelle < item.qty_attendue;
+      const seuil = item.qty_minimum > 0 ? item.qty_minimum : item.qty_attendue;
+      const qtyIssue = check.qty_reelle < seuil;
       const expiredLot = item.lots.some(l => isExpired(l.date_peremption));
       return qtyIssue || expiredLot;
     });
@@ -246,7 +248,8 @@ export default function ControleLot() {
               <div className="divide-y divide-gray-50">
                 {pItems.map(item => {
                   const check = checks[item.id] || { qty_reelle: item.qty_attendue };
-                  const qtyIssue = check.qty_reelle < item.qty_attendue;
+                  const seuil = item.qty_minimum > 0 ? item.qty_minimum : item.qty_attendue;
+                  const qtyIssue = check.qty_reelle < seuil;
                   const expiredLots = item.lots.filter(l => isExpired(l.date_peremption));
                   const soonLots = item.lots.filter(l => isSoonExpired(l.date_peremption));
                   const hasIssue = qtyIssue || expiredLots.length > 0;
@@ -273,7 +276,10 @@ export default function ControleLot() {
 
                         {/* Quantité */}
                         <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                          <p className="text-xs text-gray-400">attendu : {item.qty_attendue}</p>
+                          <p className="text-xs text-gray-400">
+                            attendu : {item.qty_attendue}
+                            {item.qty_minimum > 0 && ` · min. ${item.qty_minimum}`}
+                          </p>
                           <div className="flex items-center gap-2">
                             <button
                               className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 font-bold text-lg flex items-center justify-center"
@@ -289,7 +295,7 @@ export default function ControleLot() {
                           </div>
                           {qtyIssue && (
                             <p className="text-xs text-red-500 font-medium">
-                              manque {item.qty_attendue - check.qty_reelle}
+                              manque {seuil - check.qty_reelle}
                             </p>
                           )}
                           {!qtyIssue && !hasIssue && (

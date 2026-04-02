@@ -137,6 +137,74 @@ function QRCodeModal({ lot, onClose }) {
 
 // ─── Pochette Card ────────────────────────────────────────────────────────────
 
+import apiClient from '../api/client';
+
+function StockRow({ stock, pochetteId, isAdmin }) {
+  const [min, setMin] = useState(stock.quantite_minimum ?? 0);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveMin = async (val) => {
+    const newVal = Math.max(0, parseInt(val) || 0);
+    setMin(newVal);
+    setEditing(false);
+    setSaving(true);
+    try {
+      await apiClient.patch(`/lots/pochettes/${pochetteId}/stock/${stock.article_id}/minimum`, {
+        quantite_minimum: newVal,
+      });
+    } catch {
+      setMin(stock.quantite_minimum ?? 0);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isBelowMin = stock.quantite_actuelle < min && min > 0;
+
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <div className="flex-1 min-w-0">
+        <span className="text-gray-700">{stock.article.nom}</span>
+        {isBelowMin && <span className="ml-1 text-xs text-red-500 font-medium">⚠ sous le min.</span>}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-gray-800 font-semibold">×{stock.quantite_actuelle}</span>
+        {isAdmin ? (
+          <div className="flex items-center gap-1">
+            <span className="text-gray-400 text-xs">min.</span>
+            {editing ? (
+              <input
+                type="number" min="0"
+                className="w-12 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
+                defaultValue={min}
+                autoFocus
+                onBlur={e => saveMin(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
+              />
+            ) : (
+              <button
+                onClick={() => setEditing(true)}
+                className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                  isBelowMin ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                } ${saving ? 'opacity-50' : ''}`}
+              >
+                {min}
+              </button>
+            )}
+          </div>
+        ) : (
+          min > 0 && (
+            <span className={`text-xs ${isBelowMin ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+              min. {min}
+            </span>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete }) {
   const [open, setOpen] = useState(false);
   const stockCount = pochette.stocks?.length || 0;
@@ -168,12 +236,12 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete }) {
       </button>
 
       {open && pochette.stocks?.length > 0 && (
-        <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 text-xs space-y-1">
+        <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 text-xs divide-y divide-gray-100">
+          {isAdmin && (
+            <p className="text-gray-400 pb-1.5 text-xs italic">Cliquer sur le minimum pour le modifier</p>
+          )}
           {pochette.stocks.map(stock => (
-            <div key={stock.id} className="flex justify-between">
-              <span>{stock.article.nom}</span>
-              <span className="text-gray-500">×{stock.quantite_actuelle}</span>
-            </div>
+            <StockRow key={stock.id} stock={stock} pochetteId={pochette.id} isAdmin={isAdmin} />
           ))}
         </div>
       )}

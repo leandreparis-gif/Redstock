@@ -229,7 +229,7 @@ router.delete('/:lotId/pochettes/:id', requireAdmin, async (req, res) => {
  * Body : { quantite_actuelle, lots }
  */
 router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, res) => {
-  const { quantite_actuelle, lots } = req.body;
+  const { quantite_actuelle, quantite_minimum, lots } = req.body;
 
   try {
     const stock = await prisma.stockPochette.upsert({
@@ -241,6 +241,7 @@ router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, 
       },
       update: {
         quantite_actuelle: quantite_actuelle ?? 0,
+        quantite_minimum: quantite_minimum ?? 0,
         lots: lots ?? [],
       },
       create: {
@@ -248,12 +249,39 @@ router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, 
         pochette_id: req.params.pochetteId,
         unite_locale_id: req.user.unite_locale_id,
         quantite_actuelle: quantite_actuelle ?? 0,
+        quantite_minimum: quantite_minimum ?? 0,
         lots: lots ?? [],
       },
     });
     res.json(stock);
   } catch (err) {
     console.error('[stocks-pochette/PUT]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/lots/pochettes/:pochetteId/stock/:articleId/minimum
+ * Met à jour uniquement le minimum requis.
+ * Body : { quantite_minimum }
+ */
+router.patch('/pochettes/:pochetteId/stock/:articleId/minimum', requireAdmin, async (req, res) => {
+  const { quantite_minimum } = req.body;
+  if (quantite_minimum === undefined) return res.status(400).json({ error: 'quantite_minimum requis' });
+
+  try {
+    const stock = await prisma.stockPochette.update({
+      where: {
+        article_id_pochette_id: {
+          article_id: req.params.articleId,
+          pochette_id: req.params.pochetteId,
+        },
+      },
+      data: { quantite_minimum: parseInt(quantite_minimum) || 0 },
+    });
+    res.json(stock);
+  } catch (err) {
+    console.error('[stocks-pochette/minimum]', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

@@ -142,6 +142,7 @@ model Pochette {
 model StockPochette {
   id                String   @id @default(cuid())
   quantite_actuelle Int      @default(0)
+  quantite_minimum  Int      @default(0)
   // lots: [{ label: string, date_peremption: string|null, quantite: number }]
   lots              Json     @default("[]")
   updated_at        DateTime @updatedAt

@@ -266,8 +266,9 @@ export default function Layout() {
   const panelRef                        = useRef(null);
 
   const handleArticleFound = useCallback((data) => {
+    // Fermer le scanner d'abord, laisser le temps au cleanup camera
     setScannerOpen(false);
-    setBarcodeData(data);
+    setTimeout(() => setBarcodeData(data), 300);
   }, []);
 
   const handleBarcodeDone = useCallback(() => {

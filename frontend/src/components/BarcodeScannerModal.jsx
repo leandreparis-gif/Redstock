@@ -22,46 +22,69 @@ function Modal({ title, onClose, children }) {
 // ─── Camera Scanner (html5-qrcode) ──────────────────────────────────────────
 
 function CameraScanner({ onDetected }) {
-  const containerRef = useRef(null);
+  const onDetectedRef = useRef(onDetected);
   const scannerRef = useRef(null);
+  const [cameraError, setCameraError] = useState(null);
+
+  // Garder la ref a jour sans relancer le useEffect
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
 
   useEffect(() => {
     let mounted = true;
+    let scanner = null;
 
     import('html5-qrcode').then(({ Html5Qrcode }) => {
-      if (!mounted || !containerRef.current) return;
+      if (!mounted) return;
 
-      const scanner = new Html5Qrcode('barcode-camera-reader');
+      scanner = new Html5Qrcode('barcode-camera-reader');
       scannerRef.current = scanner;
 
       scanner.start(
         { facingMode: 'environment' },
         {
-          fps: 10,
+          fps: 5,
           qrbox: { width: 280, height: 150 },
-          formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         },
         (decodedText) => {
-          onDetected(decodedText);
+          if (onDetectedRef.current) {
+            onDetectedRef.current(decodedText);
+          }
         },
         () => {}
       ).catch((err) => {
         console.warn('Camera scanner error:', err);
+        if (mounted) setCameraError('Impossible d\'acceder a la camera');
       });
     });
 
     return () => {
       mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current.clear().catch(() => {});
+      const s = scannerRef.current;
+      if (s) {
+        s.stop().then(() => {
+          try { s.clear(); } catch {}
+        }).catch(() => {
+          try { s.clear(); } catch {}
+        });
+        scannerRef.current = null;
       }
     };
-  }, [onDetected]);
+  }, []); // Pas de deps → ne se relance jamais
+
+  if (cameraError) {
+    return (
+      <div className="bg-red-50 rounded-lg p-4 text-center">
+        <p className="text-sm text-red-600">{cameraError}</p>
+        <p className="text-xs text-gray-400 mt-1">Verifiez les permissions camera du navigateur</p>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div id="barcode-camera-reader" ref={containerRef} className="rounded-lg overflow-hidden" />
+      <div id="barcode-camera-reader" className="rounded-lg overflow-hidden" />
       <p className="text-xs text-gray-400 text-center mt-2">
         Pointez la camera vers le code-barres de l'article
       </p>
@@ -122,12 +145,19 @@ export default function BarcodeScannerModal({ onClose, onArticleFound }) {
   const [tab, setTab] = useState('manual'); // 'manual' | 'camera'
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState(null);
-  const [lastCode, setLastCode] = useState(null);
   const { lookupBarcode } = useArticles();
 
+  // Refs pour eviter les appels multiples du scanner camera
+  const searchingRef = useRef(false);
+  const lastCodeRef = useRef(null);
+
   const handleDetected = useCallback(async (code) => {
-    if (searching || code === lastCode) return;
-    setLastCode(code);
+    // Protection contre les appels multiples rapides (camera)
+    if (searchingRef.current) return;
+    if (code === lastCodeRef.current) return;
+
+    lastCodeRef.current = code;
+    searchingRef.current = true;
     setSearching(true);
     setError(null);
 
@@ -140,12 +170,23 @@ export default function BarcodeScannerModal({ onClose, onArticleFound }) {
       } else {
         setError('Erreur de recherche');
       }
-      // Reset lastCode pour permettre un nouveau scan du meme code
-      setTimeout(() => setLastCode(null), 2000);
+      // Reset pour permettre un nouveau scan du meme code
+      setTimeout(() => { lastCodeRef.current = null; }, 2000);
     } finally {
+      searchingRef.current = false;
       setSearching(false);
     }
-  }, [searching, lastCode, lookupBarcode, onArticleFound]);
+  }, [lookupBarcode, onArticleFound]);
+
+  // Sur mobile, ouvrir la camera par defaut
+  const [initialized, setInitialized] = useState(false);
+  useEffect(() => {
+    if (!initialized) {
+      setInitialized(true);
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) setTab('camera');
+    }
+  }, [initialized]);
 
   return (
     <Modal title="Scanner un code-barres" onClose={onClose}>

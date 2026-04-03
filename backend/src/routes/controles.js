@@ -8,6 +8,61 @@ const logAction = require('../utils/logAction');
 
 const router = express.Router();
 
+/**
+ * POST /api/controles/public
+ * Contrôle depuis la page mobile QR (sans JWT — token du lot en body).
+ * Body : { lot_token, controleur_prenom, statut, remarques, items: [{ stock_id, qty_reelle }] }
+ */
+router.post('/public', async (req, res) => {
+  const { lot_token, controleur_prenom, statut, remarques, items = [] } = req.body;
+
+  if (!lot_token || !controleur_prenom || !statut) {
+    return res.status(400).json({ error: 'Champs requis manquants' });
+  }
+
+  try {
+    const lot = await prisma.lot.findUnique({ where: { qr_code_token: lot_token } });
+    if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
+
+    const dateISO = new Date().toISOString();
+    const signature_data = `${controleur_prenom} — contrôle effectué le ${dateISO}`;
+
+    const controle = await prisma.controle.create({
+      data: {
+        type: 'LOT',
+        reference_id: lot.id,
+        controleur_prenom,
+        controleur_qualification: 'PSE2',
+        statut,
+        remarques: remarques || null,
+        signature_data,
+        unite_locale_id: lot.unite_locale_id,
+      },
+    });
+
+    if (items.length > 0) {
+      await Promise.all(items.map(({ stock_id, qty_reelle }) =>
+        prisma.stockPochette.update({
+          where: { id: stock_id },
+          data: { quantite_actuelle: Math.max(0, parseInt(qty_reelle) || 0) },
+        })
+      ));
+    }
+
+    logAction(prisma, {
+      uniteLocaleId: lot.unite_locale_id,
+      action: 'CONTROLE_QR',
+      details: `Contrôle QR lot "${lot.nom}" — ${statut} — par ${controleur_prenom}`,
+    });
+
+    res.status(201).json(controle);
+  } catch (err) {
+    console.error('[controles/public]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── Routes authentifiées ──────────────────────────────────────────────────
 router.use(authMiddleware);
 
 /**
@@ -154,62 +209,6 @@ router.post('/', async (req, res) => {
     res.status(201).json(controle);
   } catch (err) {
     console.error('[controles/POST]', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-/**
- * POST /api/controles/public
- * Contrôle depuis la page mobile QR (sans JWT — token du lot en body).
- * Body : { lot_token, controleur_prenom, statut, remarques, items: [{ stock_id, qty_reelle }] }
- */
-router.post('/public', async (req, res) => {
-  const { lot_token, controleur_prenom, statut, remarques, items = [] } = req.body;
-
-  if (!lot_token || !controleur_prenom || !statut) {
-    return res.status(400).json({ error: 'Champs requis manquants' });
-  }
-
-  try {
-    const lot = await prisma.lot.findUnique({ where: { qr_code_token: lot_token } });
-    if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
-
-    const dateISO = new Date().toISOString();
-    const signature_data = `${controleur_prenom} — contrôle effectué le ${dateISO}`;
-
-    // Créer le contrôle
-    const controle = await prisma.controle.create({
-      data: {
-        type: 'LOT',
-        reference_id: lot.id,
-        controleur_prenom,
-        controleur_qualification: 'PSE2',
-        statut,
-        remarques: remarques || null,
-        signature_data,
-        unite_locale_id: lot.unite_locale_id,
-      },
-    });
-
-    // Mettre à jour les quantités des stocks
-    if (items.length > 0) {
-      await Promise.all(items.map(({ stock_id, qty_reelle }) =>
-        prisma.stockPochette.update({
-          where: { id: stock_id },
-          data: { quantite_actuelle: Math.max(0, parseInt(qty_reelle) || 0) },
-        })
-      ));
-    }
-
-    logAction(prisma, {
-      uniteLocaleId: lot.unite_locale_id,
-      action: 'CONTROLE_QR',
-      details: `Contrôle QR lot "${lot.nom}" — ${statut} — par ${controleur_prenom}`,
-    });
-
-    res.status(201).json(controle);
-  } catch (err) {
-    console.error('[controles/public]', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

@@ -20,6 +20,9 @@ router.get('/public/:token', async (req, res) => {
     const lot = await prisma.lot.findUnique({
       where: { qr_code_token: req.params.token },
       include: {
+        unite_locale: {
+          select: { nom: true, telephone: true, email: true, adresse: true },
+        },
         pochettes: {
           include: {
             stocks: {

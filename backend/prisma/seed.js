@@ -25,7 +25,12 @@ async function main() {
 
   // ─── UNITÉ LOCALE ──────────────────────────────────────────────────────────
   const ul = await prisma.uniteLocale.create({
-    data: { nom: 'Versailles Grand Parc Ouest' },
+    data: {
+      nom: 'Versailles Grand Parc Ouest',
+      telephone: '01 39 50 12 34',
+      email: 'ul.versailles@croix-rouge.fr',
+      adresse: '12 rue de la Paroisse, 78000 Versailles',
+    },
   });
   console.log(`✅ UL créée : ${ul.nom}`);
 

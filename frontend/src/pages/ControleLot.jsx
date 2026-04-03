@@ -216,6 +216,36 @@ export default function ControleLot() {
           ))}
         </div>
 
+        {/* Coordonnées de la structure */}
+        {lot.unite_locale && (
+          <div className="bg-white rounded-2xl shadow p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              Ce matériel appartient à
+            </p>
+            <p className="font-bold text-gray-800 text-sm">
+              Croix-Rouge française — {lot.unite_locale.nom}
+            </p>
+            {lot.unite_locale.adresse && (
+              <p className="text-sm text-gray-600 mt-1">📍 {lot.unite_locale.adresse}</p>
+            )}
+            {lot.unite_locale.telephone && (
+              <a href={`tel:${lot.unite_locale.telephone}`}
+                className="inline-flex items-center gap-1.5 text-sm text-crf-rouge font-medium mt-2">
+                📞 {lot.unite_locale.telephone}
+              </a>
+            )}
+            {lot.unite_locale.email && (
+              <a href={`mailto:${lot.unite_locale.email}`}
+                className="block text-sm text-crf-rouge font-medium mt-1">
+                ✉ {lot.unite_locale.email}
+              </a>
+            )}
+            <p className="text-xs text-gray-400 mt-3">
+              Si vous avez trouvé ce matériel, merci de nous contacter.
+            </p>
+          </div>
+        )}
+
         <button
           className="w-full bg-crf-rouge text-white font-semibold py-3.5 rounded-xl text-base"
           onClick={startChecklist}

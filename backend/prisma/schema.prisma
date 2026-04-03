@@ -12,6 +12,9 @@ datasource db {
 model UniteLocale {
   id         String   @id @default(cuid())
   nom        String
+  telephone  String?
+  email      String?
+  adresse    String?
   created_at DateTime @default(now())
 
   users            User[]

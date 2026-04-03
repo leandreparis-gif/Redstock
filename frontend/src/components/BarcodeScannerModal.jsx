@@ -74,54 +74,16 @@ function CameraScanner({ onDetected }) {
 function ManualInput({ onDetected }) {
   const inputRef = useRef(null);
   const [value, setValue] = useState('');
-  const lastKeyTime = useRef(0);
-  const bufferRef = useRef('');
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Douchette: les caracteres arrivent tres vite (<50ms entre chaque)
-  // On detecte un scan quand Enter arrive apres une saisie rapide
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Only listen when input is focused
-      if (document.activeElement !== inputRef.current) return;
-
-      const now = Date.now();
-      const timeDiff = now - lastKeyTime.current;
-
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const code = bufferRef.current || value;
-        if (code.trim()) {
-          onDetected(code.trim());
-          setValue('');
-          bufferRef.current = '';
-        }
-        return;
-      }
-
-      if (e.key.length === 1) {
-        if (timeDiff < 80) {
-          // Douchette : accumule dans le buffer
-          bufferRef.current += e.key;
-        } else {
-          // Saisie manuelle : reset du buffer
-          bufferRef.current = e.key;
-        }
-        lastKeyTime.current = now;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onDetected, value]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (value.trim()) {
-      onDetected(value.trim());
+    const code = inputRef.current?.value || '';
+    if (code.trim()) {
+      onDetected(code.trim());
       setValue('');
     }
   };

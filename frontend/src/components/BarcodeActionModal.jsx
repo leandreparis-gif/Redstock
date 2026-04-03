@@ -77,6 +77,14 @@ function AddStockForm({ article, armoires, onSubmit, onBack, loading }) {
 
 // ─── Sous-formulaire : Retirer de la pharmacie ──────────────────────────────
 
+function formatLotOption(lot, index) {
+  const label = lot.label || `Lot #${index + 1}`;
+  const date = lot.date_peremption
+    ? ` — exp. ${new Date(lot.date_peremption).toLocaleDateString('fr-FR')}`
+    : '';
+  return `${label}${date} (x${lot.quantite})`;
+}
+
 function RemoveStockForm({ article, stockTiroirs, onSubmit, onBack, loading }) {
   const [stockId, setStockId] = useState('');
   const [quantite, setQuantite] = useState(1);
@@ -118,14 +126,36 @@ function RemoveStockForm({ article, stockTiroirs, onSubmit, onBack, loading }) {
       </div>
       {selectedStock && stockLots.length > 0 && (
         <div>
-          <label className="label">Lot *</label>
-          <select className="select" value={lotIdx} onChange={e => { setLotIdx(Number(e.target.value)); setQuantite(1); }}>
-            {stockLots.map((l, i) => (
-              <option key={i} value={i}>
-                {l.label}{l.date_peremption ? ` — exp. ${new Date(l.date_peremption).toLocaleDateString('fr-FR')}` : ''} (x{l.quantite})
-              </option>
-            ))}
-          </select>
+          <label className="label">Lot * <span className="font-normal text-gray-400">({stockLots.length} lot{stockLots.length > 1 ? 's' : ''} disponible{stockLots.length > 1 ? 's' : ''})</span></label>
+          {stockLots.length === 1 ? (
+            <div className="bg-gray-50 rounded-md p-2 text-sm text-gray-700">
+              {formatLotOption(stockLots[0], 0)}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {stockLots.map((l, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setLotIdx(i); setQuantite(1); }}
+                  className={`w-full text-left p-2.5 rounded-md text-sm transition-colors ${
+                    lotIdx === i
+                      ? 'bg-crf-rouge/10 border-2 border-crf-rouge text-crf-texte font-medium'
+                      : 'bg-gray-50 border-2 border-transparent hover:border-gray-200 text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{l.label || `Lot #${i + 1}`}</span>
+                    <span className="font-semibold">x{l.quantite}</span>
+                  </div>
+                  {l.date_peremption && (
+                    <p className="text-xs text-orange-500 mt-0.5">
+                      exp. {new Date(l.date_peremption).toLocaleDateString('fr-FR')}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {selectedLot && (
@@ -195,14 +225,36 @@ function TransferForm({ article, stockTiroirs, lotsData, onSubmit, onBack, loadi
 
       {selectedStock && stockLots.length > 0 && (
         <div>
-          <label className="label">Lot source *</label>
-          <select className="select" value={lotIdx} onChange={e => { setLotIdx(Number(e.target.value)); setQuantite(1); }}>
-            {stockLots.map((l, i) => (
-              <option key={i} value={i}>
-                {l.label}{l.date_peremption ? ` — exp. ${new Date(l.date_peremption).toLocaleDateString('fr-FR')}` : ''} (x{l.quantite})
-              </option>
-            ))}
-          </select>
+          <label className="label">Lot source * <span className="font-normal text-gray-400">({stockLots.length} lot{stockLots.length > 1 ? 's' : ''})</span></label>
+          {stockLots.length === 1 ? (
+            <div className="bg-gray-50 rounded-md p-2 text-sm text-gray-700">
+              {formatLotOption(stockLots[0], 0)}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {stockLots.map((l, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setLotIdx(i); setQuantite(1); }}
+                  className={`w-full text-left p-2.5 rounded-md text-sm transition-colors ${
+                    lotIdx === i
+                      ? 'bg-crf-rouge/10 border-2 border-crf-rouge text-crf-texte font-medium'
+                      : 'bg-gray-50 border-2 border-transparent hover:border-gray-200 text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{l.label || `Lot #${i + 1}`}</span>
+                    <span className="font-semibold">x{l.quantite}</span>
+                  </div>
+                  {l.date_peremption && (
+                    <p className="text-xs text-orange-500 mt-0.5">
+                      exp. {new Date(l.date_peremption).toLocaleDateString('fr-FR')}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -411,13 +463,29 @@ export default function BarcodeActionModal({ data, onClose, onDone }) {
             </p>
           </div>
         </div>
-        {/* Detail par emplacement */}
+        {/* Detail par emplacement avec lots */}
         {stockTiroirs.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-200 space-y-0.5">
+          <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
             {stockTiroirs.map(s => (
-              <p key={s.id} className="text-xs text-gray-500">
-                {s.tiroir.armoire.nom} &gt; {s.tiroir.nom} : <span className="font-medium">x{s.quantite_actuelle}</span>
-              </p>
+              <div key={s.id}>
+                <p className="text-xs font-medium text-gray-600">
+                  {s.tiroir.armoire.nom} &gt; {s.tiroir.nom} — <span className="font-semibold">x{s.quantite_actuelle}</span>
+                </p>
+                {(s.lots || []).filter(l => (l.quantite || 0) > 0).map((lot, i) => (
+                  <div key={i} className="flex items-center gap-2 ml-3 mt-0.5">
+                    <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
+                    <span className="text-xs text-gray-500">
+                      {lot.label || 'Sans ref.'}
+                    </span>
+                    {lot.date_peremption && (
+                      <span className="text-xs text-orange-500">
+                        exp. {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
+                    <span className="text-xs font-medium text-gray-600">x{lot.quantite}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}

@@ -2,12 +2,11 @@
 
 const express = require('express');
 const QRCode = require('qrcode');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // ─── ROUTES PUBLIQUES (pas de JWT) ────────────────────────────────────────────
 

@@ -2,14 +2,13 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
 const logAction = require('../utils/logAction');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Toutes les routes utilisateurs nécessitent d'être ADMIN
 router.use(authMiddleware, requireAdmin);

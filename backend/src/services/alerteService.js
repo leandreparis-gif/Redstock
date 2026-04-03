@@ -4,10 +4,8 @@
  * Exécuté chaque nuit à 2h00.
  */
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { alertePeremption, alerteStockBas } = require('./mailService');
-
-const prisma = new PrismaClient();
 const JOURS_ALERTE = 30; // alerter si péremption < 30 jours
 
 async function verifierAlertes() {

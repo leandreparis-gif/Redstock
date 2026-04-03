@@ -19,9 +19,14 @@ export function useAlertes() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  const resoudre = useCallback(async (id) => {
+    await apiClient.patch(`/alertes/${id}/resoudre`);
+    await fetch();
+  }, [fetch]);
+
   const alertesActives = alertes.filter((a) => a.statut === 'ACTIVE');
   const countPeremption = alertesActives.filter((a) => a.type === 'PEREMPTION').length;
   const countStockBas = alertesActives.filter((a) => a.type === 'STOCK_BAS').length;
 
-  return { alertes, alertesActives, countPeremption, countStockBas, loading, fetch };
+  return { alertes, alertesActives, countPeremption, countStockBas, loading, fetch, resoudre };
 }

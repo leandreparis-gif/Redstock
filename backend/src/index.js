@@ -12,6 +12,7 @@ const uniformesRoutes = require('./routes/uniformes');
 const usersRoutes = require('./routes/users');
 const logsRoutes  = require('./routes/logs');
 const searchRoutes = require('./routes/search');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,6 +51,7 @@ app.use('/api/uniformes', uniformesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/logs',  logsRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

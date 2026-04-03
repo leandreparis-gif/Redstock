@@ -46,14 +46,15 @@ function SearchBar() {
     const val = e.target.value;
     setQuery(val);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(val), 300);
+    debounceRef.current = setTimeout(() => search(val), 150);
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') { setOpen(false); setQuery(''); }
   };
 
-  const go = (path) => {
+  const go = (e, path) => {
+    e.preventDefault();
     setOpen(false);
     setQuery('');
     setResults(null);
@@ -71,7 +72,7 @@ function SearchBar() {
   };
 
   return (
-    <div ref={wrapperRef} className="relative flex-1 max-w-sm mx-4">
+    <div ref={wrapperRef} className="relative flex-1 max-w-md">
       {/* Input */}
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
@@ -111,7 +112,7 @@ function SearchBar() {
                     💊 Articles pharmacie
                   </p>
                   {results.articles.map(a => (
-                    <button key={a.id} onClick={() => go(`/armoire?article=${a.id}`)}
+                    <button key={a.id} onMouseDown={(e) => go(e, `/armoires?article=${a.id}`)}
                       className="w-full text-left px-4 py-2.5 hover:bg-crf-rouge/5 transition-colors group">
                       <p className="text-sm font-medium text-crf-texte group-hover:text-crf-rouge">{a.nom}</p>
                       <p className="text-xs text-gray-400">{a.categorie} · Pharmacie →</p>
@@ -127,7 +128,7 @@ function SearchBar() {
                     🎒 Lots & Sacs
                   </p>
                   {results.lots.map(l => (
-                    <button key={l.id} onClick={() => go('/lots')}
+                    <button key={l.id} onMouseDown={(e) => go(e, '/lots')}
                       className="w-full text-left px-4 py-2.5 hover:bg-crf-rouge/5 transition-colors group">
                       <p className="text-sm font-medium text-crf-texte group-hover:text-crf-rouge">{l.nom}</p>
                       <p className="text-xs text-gray-400">Lots & Sacs →</p>
@@ -143,7 +144,7 @@ function SearchBar() {
                     👕 Uniformes
                   </p>
                   {results.uniformes.map(u => (
-                    <button key={u.id} onClick={() => go('/uniformes')}
+                    <button key={u.id} onMouseDown={(e) => go(e, '/uniformes')}
                       className="w-full text-left px-4 py-2.5 hover:bg-crf-rouge/5 transition-colors group">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-crf-texte group-hover:text-crf-rouge">{u.nom}</p>
@@ -180,7 +181,7 @@ function AlertesPanel({ alertes, onClose }) {
     : null;
 
   const goToDashboard = () => { onClose(); navigate('/dashboard'); };
-  const goToArticle   = (articleId) => { onClose(); navigate(`/armoire?article=${articleId}`); };
+  const goToArticle   = (articleId) => { onClose(); navigate(`/armoires?article=${articleId}`); };
 
   return (
     <div className="absolute right-0 top-12 z-50 w-80 bg-white rounded-xl shadow-xl

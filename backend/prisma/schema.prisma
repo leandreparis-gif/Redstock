@@ -70,6 +70,7 @@ model Article {
   id             String   @id @default(cuid())
   nom            String
   description    String?
+  code_barre     String?  @unique
   quantite_min   Int      @default(1)
   categorie      String
   est_perimable  Boolean  @default(false)

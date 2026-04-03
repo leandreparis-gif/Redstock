@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
-import { IconPlus, IconEdit, IconTrash } from '../components/Icons';
+import { IconPlus, IconEdit, IconTrash, IconPrint, IconBarcode } from '../components/Icons';
 import apiClient from '../api/client';
 import { useArticles } from '../hooks/useArticles';
+import JsBarcode from 'jsbarcode';
 
 // ─── Modal générique ──────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
     categorie: initial?.categorie || '',
     quantite_min: initial?.quantite_min || 1,
     est_perimable: initial?.est_perimable ?? true,
+    code_barre: initial?.code_barre || '',
   });
 
   return (
@@ -39,9 +41,18 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
         <input className="input" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
       </div>
       <div>
-        <label className="label">Catégorie *</label>
+        <label className="label">Categorie *</label>
         <input className="input" value={form.categorie} placeholder="ex: Airway, Circulation…"
           onChange={e => setForm(f => ({ ...f, categorie: e.target.value }))} />
+      </div>
+      <div>
+        <label className="label">Code-barres</label>
+        <input className="input font-mono tracking-wider" value={form.code_barre}
+          placeholder={initial ? 'Scannez ou tapez...' : 'Laissez vide = auto-genere (EAN-13)'}
+          onChange={e => setForm(f => ({ ...f, code_barre: e.target.value }))} />
+        <p className="text-xs text-gray-400 mt-1">
+          {initial ? 'Douchette USB ou saisie manuelle' : 'Si vide, un code EAN-13 sera genere automatiquement'}
+        </p>
       </div>
       <div>
         <label className="label">Description</label>
@@ -50,7 +61,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="label">Quantité minimale *</label>
+          <label className="label">Quantite minimale *</label>
           <input type="number" min="0" className="input" value={form.quantite_min}
             onChange={e => setForm(f => ({ ...f, quantite_min: parseInt(e.target.value) || 0 }))} />
         </div>
@@ -58,7 +69,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.est_perimable}
               onChange={e => setForm(f => ({ ...f, est_perimable: e.target.checked }))} />
-            <span className="text-sm text-gray-700">Article périmable</span>
+            <span className="text-sm text-gray-700">Article perimable</span>
           </label>
         </div>
       </div>
@@ -67,6 +78,92 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
         <button className="btn-primary" disabled={!form.nom || !form.categorie || loading}
           onClick={() => onSave(form)}>
           {loading ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal impression code-barres ────────────────────────────────────────────
+
+function BarcodeModal({ article, onClose }) {
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (svgRef.current && article.code_barre) {
+      try {
+        JsBarcode(svgRef.current, article.code_barre, {
+          format: 'EAN13',
+          width: 2,
+          height: 80,
+          displayValue: true,
+          fontSize: 16,
+          margin: 10,
+        });
+      } catch {
+        // Fallback si le format n'est pas EAN-13
+        JsBarcode(svgRef.current, article.code_barre, {
+          format: 'CODE128',
+          width: 2,
+          height: 80,
+          displayValue: true,
+          fontSize: 16,
+          margin: 10,
+        });
+      }
+    }
+  }, [article.code_barre]);
+
+  const handlePrint = () => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+    const svgData = new XMLSerializer().serializeToString(svgEl);
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <html><head><title>Code-barres — ${article.nom}</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 30px; }
+        h2 { font-size: 18px; margin-bottom: 4px; }
+        p { font-size: 12px; color: #666; margin: 2px 0; }
+        .barcode { margin: 20px auto; }
+        @media print { button { display: none; } }
+      </style></head>
+      <body>
+        <h2>${article.nom}</h2>
+        <p>${article.categorie}</p>
+        <div class="barcode">${svgData}</div>
+        <p style="font-size:10px;color:#aaa;margin-top:12px">PharmaSecours — Croix-Rouge francaise</p>
+        <br/><button onclick="window.print()">Imprimer</button>
+        <script>window.onload=()=>window.print()</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
+
+  if (!article.code_barre) {
+    return (
+      <Modal title={`Code-barres — ${article.nom}`} onClose={onClose}>
+        <p className="text-sm text-gray-500 text-center py-4">
+          Cet article n'a pas de code-barres. Modifiez-le pour en ajouter un.
+        </p>
+        <div className="flex justify-end">
+          <button className="btn-secondary" onClick={onClose}>Fermer</button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title={`Code-barres — ${article.nom}`} onClose={onClose}>
+      <div className="text-center">
+        <svg ref={svgRef} className="mx-auto" />
+        <p className="text-xs text-gray-400 mt-2 font-mono">{article.code_barre}</p>
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <button className="btn-secondary" onClick={onClose}>Fermer</button>
+        <button className="btn-primary flex items-center gap-2" onClick={handlePrint}>
+          <IconPrint size={15} />
+          Imprimer
         </button>
       </div>
     </Modal>
@@ -122,13 +219,17 @@ function AdminArticles() {
                   <p className="font-medium text-sm text-crf-texte">{a.nom}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{a.categorie}</p>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <span className="text-xs text-gray-400">Qté min : {a.quantite_min}</span>
+                    <span className="text-xs text-gray-400">Qte min : {a.quantite_min}</span>
                     {a.est_perimable && (
-                      <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">périmable</span>
+                      <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">perimable</span>
+                    )}
+                    {a.code_barre && (
+                      <span className="text-xs font-mono text-gray-400">{a.code_barre}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0 mt-0.5">
+                  {a.code_barre && <button className="btn-icon p-1" title="Imprimer code-barres" onClick={() => setModal({ type: 'barcode', data: a })}><IconBarcode size={13} /></button>}
                   <button className="btn-icon p-1" onClick={() => setModal({ type: 'article', data: a })}><IconEdit size={13} /></button>
                   <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(a)}><IconTrash size={13} /></button>
                 </div>
@@ -138,16 +239,18 @@ function AdminArticles() {
           {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto card p-0">
             <table className="table-auto">
-              <thead><tr><th>Nom</th><th>Catégorie</th><th>Qté min.</th><th>Périmable</th><th></th></tr></thead>
+              <thead><tr><th>Nom</th><th>Categorie</th><th>Code-barres</th><th>Qte min.</th><th>Perimable</th><th></th></tr></thead>
               <tbody>
                 {articles.map(a => (
                   <tr key={a.id}>
                     <td className="font-medium">{a.nom}</td>
                     <td>{a.categorie}</td>
+                    <td className="font-mono text-xs text-gray-500">{a.code_barre || '—'}</td>
                     <td>{a.quantite_min}</td>
                     <td>{a.est_perimable ? '✓' : '—'}</td>
                     <td className="text-right">
                       <div className="flex gap-1 justify-end">
+                        {a.code_barre && <button className="btn-icon p-1" title="Imprimer code-barres" onClick={() => setModal({ type: 'barcode', data: a })}><IconBarcode size={13} /></button>}
                         <button className="btn-icon p-1" onClick={() => setModal({ type: 'article', data: a })}><IconEdit size={13} /></button>
                         <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(a)}><IconTrash size={13} /></button>
                       </div>
@@ -160,6 +263,7 @@ function AdminArticles() {
         </>
       )}
       {modal?.type === 'article' && <ArticleModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />}
+      {modal?.type === 'barcode' && <BarcodeModal article={modal.data} onClose={() => setModal(null)} />}
       {toast && (
         <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}

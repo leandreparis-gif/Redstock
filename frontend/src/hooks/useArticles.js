@@ -32,5 +32,10 @@ export function useArticles() {
     await fetch();
   }, [fetch]);
 
-  return { articles, loading, fetch, createArticle, updateArticle, deleteArticle };
+  const lookupBarcode = useCallback(async (code) => {
+    const { data } = await apiClient.get(`/articles/barcode/${encodeURIComponent(code)}`);
+    return data;
+  }, []);
+
+  return { articles, loading, fetch, createArticle, updateArticle, deleteArticle, lookupBarcode };
 }

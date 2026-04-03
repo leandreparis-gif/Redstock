@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { IconMenu, IconAlerte } from './Icons';
+import { IconMenu, IconAlerte, IconBarcode } from './Icons';
 import { useAlertes } from '../hooks/useAlertes';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
+import BarcodeScannerModal from './BarcodeScannerModal';
+import BarcodeActionModal from './BarcodeActionModal';
 
 // ─── Barre de recherche globale ───────────────────────────────────────────────
 
@@ -255,11 +257,22 @@ function AlertesPanel({ alertes, onClose }) {
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [alertesOpen, setAlertesOpen]   = useState(false);
+  const [scannerOpen, setScannerOpen]   = useState(false);
+  const [barcodeData, setBarcodeData]   = useState(null);
   const { alertesActives }              = useAlertes();
   const { user }                        = useAuth();
   const totalAlertes                    = alertesActives.length;
   const initiale                        = user?.prenom?.[0]?.toUpperCase() || '?';
   const panelRef                        = useRef(null);
+
+  const handleArticleFound = useCallback((data) => {
+    setScannerOpen(false);
+    setBarcodeData(data);
+  }, []);
+
+  const handleBarcodeDone = useCallback(() => {
+    setBarcodeData(null);
+  }, []);
 
   useEffect(() => {
     if (!alertesOpen) return;
@@ -289,10 +302,23 @@ export default function Layout() {
             <IconMenu size={22} />
           </button>
 
-          {/* Barre de recherche */}
-          <SearchBar />
+          {/* Barre de recherche — centrée */}
+          <div className="flex-1 flex justify-center">
+            <SearchBar />
+          </div>
 
-          {/* Cloche alertes */}
+          {/* Bouton scanner */}
+          <button
+            onClick={() => setScannerOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-full
+                       hover:bg-gray-100 text-gray-400 hover:text-crf-rouge transition-colors flex-shrink-0"
+            aria-label="Scanner un code-barres"
+            title="Scanner un code-barres"
+          >
+            <IconBarcode size={20} />
+          </button>
+
+          {/* Cloche alertes + compte — à droite */}
           <div className="relative flex-shrink-0" ref={panelRef}>
             <button
               onClick={() => setAlertesOpen(o => !o)}
@@ -331,6 +357,21 @@ export default function Layout() {
           </div>
         </main>
       </div>
+
+      {/* Modals scanner code-barres */}
+      {scannerOpen && (
+        <BarcodeScannerModal
+          onClose={() => setScannerOpen(false)}
+          onArticleFound={handleArticleFound}
+        />
+      )}
+      {barcodeData && (
+        <BarcodeActionModal
+          data={barcodeData}
+          onClose={() => setBarcodeData(null)}
+          onDone={handleBarcodeDone}
+        />
+      )}
     </div>
   );
 }

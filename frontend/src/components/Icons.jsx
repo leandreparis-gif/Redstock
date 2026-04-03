@@ -52,3 +52,4 @@ export const IconUser        = icon(<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00
 export const IconRefresh     = icon(<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></>);
 export const IconCopy        = icon(<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></>);
 export const IconArrowLeft   = icon(<><polyline points="15 18 9 12 15 6"/></>);
+export const IconBarcode     = icon(<><rect x="2" y="4" width="2" height="16"/><rect x="6" y="4" width="1" height="16"/><rect x="9" y="4" width="2" height="16"/><rect x="13" y="4" width="1" height="16"/><rect x="16" y="4" width="2" height="16"/><rect x="20" y="4" width="2" height="16"/></>, { fill: true });

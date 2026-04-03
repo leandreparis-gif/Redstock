@@ -66,7 +66,7 @@ function UniformeModal({ initial, onSave, onClose, loading }) {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Taille *</label>
           <select className="select" value={form.taille}
@@ -103,6 +103,7 @@ function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
     beneficiaire_prenom: '',
     beneficiaire_qualification: 'PSE2',
     date_retour_prevue: '',
+    remarques: '',
   });
 
   const typeLabels = {
@@ -111,9 +112,37 @@ function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
     RETOUR: 'Enregistrer un retour',
   };
 
+  const mouvement = uniforme?.mouvements?.[0];
+
   return (
     <Modal title={typeLabels[type]} onClose={onClose}>
-      {type !== 'RETOUR' && (
+      {type === 'RETOUR' ? (
+        <>
+          {/* Récap bénéficiaire */}
+          {mouvement && (
+            <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Retour de</p>
+              <p className="text-sm font-semibold text-crf-texte">
+                {mouvement.beneficiaire_prenom}
+                <span className="text-gray-400 font-normal ml-1">({mouvement.beneficiaire_qualification})</span>
+              </p>
+              <p className="text-xs text-gray-500">
+                {uniforme.statut === 'ATTRIBUE' ? 'Attribution définitive' : 'Prêt temporaire'}
+                {mouvement.date_retour_prevue && (
+                  <span> · retour prévu le {new Date(mouvement.date_retour_prevue).toLocaleDateString('fr-FR')}</span>
+                )}
+              </p>
+            </div>
+          )}
+          <div>
+            <label className="label">Remarques (optionnel)</label>
+            <textarea className="input resize-none" rows={2}
+              placeholder="État à la restitution, remarques…"
+              value={form.remarques}
+              onChange={e => setForm(f => ({ ...f, remarques: e.target.value }))} />
+          </div>
+        </>
+      ) : (
         <>
           <div>
             <label className="label">Prénom du bénéficiaire *</label>
@@ -146,10 +175,10 @@ function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
       <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
         <button className="btn-primary" disabled={
-          type !== 'RETOUR' && (!form.beneficiaire_prenom || (type === 'PRET' && !form.date_retour_prevue)) || loading
+          (type !== 'RETOUR' && (!form.beneficiaire_prenom || (type === 'PRET' && !form.date_retour_prevue))) || loading
         }
           onClick={() => onSave(form)}>
-          {loading ? 'Enregistrement…' : 'Confirmer'}
+          {loading ? 'Enregistrement…' : 'Confirmer le retour'}
         </button>
       </div>
     </Modal>
@@ -220,10 +249,10 @@ function UniformeCard({ uniforme, isAdmin, onEdit, onDelete, onPret, onAttributi
           </>
         )}
 
-        {uniforme.statut === 'PRETE' && (
+        {(uniforme.statut === 'PRETE' || uniforme.statut === 'ATTRIBUE') && (
           <button onClick={() => onRetour(uniforme)}
             className="flex-1 text-xs px-2 py-1.5 rounded bg-green-100 text-green-600 hover:bg-green-200 transition-colors">
-            Enregistrer le retour
+            ↩ Retour
           </button>
         )}
 
@@ -287,7 +316,7 @@ export default function Uniformes() {
     try {
       if (type === 'PRET')        await createPret(modal.data.id, form);
       else if (type === 'ATTRIBUTION') await createAttribution(modal.data.id, form);
-      else if (type === 'RETOUR')      await createRetour(modal.data.id, {});
+      else if (type === 'RETOUR')      await createRetour(modal.data.id, { remarques: form.remarques || undefined });
       showToast(`${type === 'PRET' ? 'Prêt' : type === 'ATTRIBUTION' ? 'Attribution' : 'Retour'} enregistré`);
       closeModal();
     } catch (e) {

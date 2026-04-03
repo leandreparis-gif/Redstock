@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import PeremptionBadge, { getPeremptionStatut } from '../components/PeremptionBadge';
 import {
@@ -267,65 +268,95 @@ function MinEditor({ article, isAdmin }) {
   );
 }
 
-function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer }) {
+function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted }) {
   const { article, quantite_actuelle, lots } = stock;
   const sousMin = quantite_actuelle < article.quantite_min;
   const pire    = pireStatutStock(lots, article.est_perimable);
   const urgent  = pire === 'perime' || pire === 'critique';
-  const [open, setOpen] = useState(urgent);
+  const [open, setOpen] = useState(urgent || highlighted);
+  const rowRef = useRef(null);
+
+  useEffect(() => {
+    if (highlighted) {
+      setOpen(true);
+      setTimeout(() => {
+        rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [highlighted]);
 
   return (
-    <div className={`border rounded-md overflow-hidden ${urgent ? 'border-red-200' : 'border-gray-100'}`}>
+    <div ref={rowRef} className={`border rounded-md overflow-hidden transition-all duration-500
+      ${highlighted ? 'border-crf-rouge ring-2 ring-crf-rouge/20' : urgent ? 'border-red-200' : 'border-gray-100'}`}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors text-left"
       >
-        {open
-          ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
-          : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
-        }
-        <span className="flex-1 text-sm font-medium text-crf-texte truncate">{article.nom}</span>
-
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-          sousMin ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-        }`}>
-          {quantite_actuelle}
-        </span>
-
-        <div onClick={e => e.stopPropagation()}>
-          <MinEditor article={article} isAdmin={isAdmin} />
+        {/* Ligne nom */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {open
+            ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+            : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
+          }
+          <span className="text-sm font-medium text-crf-texte">{article.nom}</span>
+          <span className="text-[11px] text-gray-400 hidden sm:block flex-shrink-0">{article.categorie}</span>
         </div>
 
-        {article.est_perimable && <PeremptionBadge date={
-          lots?.reduce((worst, l) => {
-            if (!worst) return l.date_peremption;
-            const s = getPeremptionStatut(l.date_peremption);
-            const w = getPeremptionStatut(worst);
-            const ord = ['perime','critique','proche','ok'];
-            return ord.indexOf(s) < ord.indexOf(w) ? l.date_peremption : worst;
-          }, null)
-        } />}
+        {/* Ligne actions */}
+        <div className="flex items-center gap-2 pl-6 sm:pl-0 flex-shrink-0"
+             onClick={e => e.stopPropagation()}>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+            sousMin ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+          }`}>
+            {quantite_actuelle}
+          </span>
 
-        <span className="text-[11px] text-gray-400 hidden sm:block flex-shrink-0">{article.categorie}</span>
+          {article.est_perimable && <PeremptionBadge date={
+            lots?.reduce((worst, l) => {
+              if (!worst) return l.date_peremption;
+              const s = getPeremptionStatut(l.date_peremption);
+              const w = getPeremptionStatut(worst);
+              const ord = ['perime','critique','proche','ok'];
+              return ord.indexOf(s) < ord.indexOf(w) ? l.date_peremption : worst;
+            }, null)
+          } />}
 
-        {isAdmin && (
-          <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <button
-              onClick={() => onTransfer(stock, tiroirId)}
-              className="text-xs px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
-              title="Transférer vers un lot"
-            >
-              → Lot
-            </button>
-            <button className="btn-icon p-1" onClick={() => onEdit(stock)}><IconEdit size={13} /></button>
-            <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}><IconTrash size={13} /></button>
+          {/* MinEditor caché sur mobile — affiché dans la section expansée */}
+          <div className="hidden sm:block">
+            <MinEditor article={article} isAdmin={isAdmin} />
           </div>
-        )}
+
+          {isAdmin && (
+            <div className="flex gap-1 flex-shrink-0">
+              <button
+                onClick={() => onTransfer(stock, tiroirId)}
+                className="text-xs px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+                title="Transférer vers un lot"
+              >
+                <span className="sm:hidden">→</span>
+                <span className="hidden sm:inline">→ Lot</span>
+              </button>
+              <button className="btn-icon p-1" onClick={() => onEdit(stock)}><IconEdit size={13} /></button>
+              <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}><IconTrash size={13} /></button>
+            </div>
+          )}
+        </div>
       </button>
 
-      {open && lots?.length > 0 && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-2 py-1.5 space-y-0.5">
-          {lots.map((lot, i) => <LotRow key={i} lot={lot} />)}
+      {open && (
+        <div>
+          {/* MinEditor visible sur mobile dans la zone expansée */}
+          <div className="sm:hidden flex items-center justify-between gap-2 px-3 py-1.5
+                          border-t border-gray-100 bg-gray-50/40"
+               onClick={e => e.stopPropagation()}>
+            <span className="text-xs text-gray-400">Quantité minimale</span>
+            <MinEditor article={article} isAdmin={isAdmin} />
+          </div>
+          {lots?.length > 0 && (
+            <div className="border-t border-gray-100 bg-gray-50/50 px-2 py-1.5 space-y-0.5">
+              {lots.map((lot, i) => <LotRow key={i} lot={lot} />)}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -335,8 +366,10 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
 // ─── Tiroir ───────────────────────────────────────────────────────────────────
 
 function TiroirSection({ tiroir, armoire, isAdmin, articles,
-  onEditTiroir, onDeleteTiroir, onAddStock, onEditStock, onDeleteStock, onControler, onTransferStock
+  onEditTiroir, onDeleteTiroir, onAddStock, onEditStock, onDeleteStock, onControler, onTransferStock,
+  highlightArticleId
 }) {
+  const hasHighlight = highlightArticleId && tiroir.stocks?.some(s => s.article.id === highlightArticleId);
   const [open, setOpen] = useState(true);
   const hasProbleme = tiroir.stocks?.some(s => {
     const p = pireStatutStock(s.lots, s.article.est_perimable);
@@ -347,38 +380,37 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
   return (
     <div className="border border-gray-200 rounded-card overflow-hidden">
       {/* Header tiroir */}
-      <div className={`flex items-center gap-2 px-4 py-3 cursor-pointer
+      <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-4 py-3 cursor-pointer
         ${hasProbleme ? 'bg-red-50 border-b border-red-100' : 'bg-gray-50 border-b border-gray-100'}
         hover:bg-opacity-80 transition-colors`}
         onClick={() => setOpen(o => !o)}
       >
-        {open
-          ? <IconChevronDown size={16} className="text-gray-400 flex-shrink-0" />
-          : <IconChevronRight size={16} className="text-gray-400 flex-shrink-0" />
-        }
-        <span className="flex-1 font-semibold text-crf-texte text-sm">{tiroir.nom}</span>
+        {/* Ligne nom */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {open
+            ? <IconChevronDown size={16} className="text-gray-400 flex-shrink-0" />
+            : <IconChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+          }
+          <span className="font-semibold text-crf-texte text-sm">{tiroir.nom}</span>
+          {tiroir.description && (
+            <span className="text-xs text-gray-400 hidden md:block truncate">{tiroir.description}</span>
+          )}
+        </div>
 
-        {tiroir.description && (
-          <span className="text-xs text-gray-400 hidden md:block truncate max-w-xs">
-            {tiroir.description}
+        {/* Ligne actions */}
+        <div className="flex items-center gap-1 pl-6 sm:pl-0 flex-shrink-0"
+             onClick={e => e.stopPropagation()}>
+          <span className="text-xs text-gray-500 flex-1 sm:flex-none">
+            {tiroir.stocks?.length || 0} article{tiroir.stocks?.length !== 1 ? 's' : ''}
           </span>
-        )}
-
-        <span className="text-xs text-gray-500 flex-shrink-0">
-          {tiroir.stocks?.length || 0} article{tiroir.stocks?.length !== 1 ? 's' : ''}
-        </span>
-
-        {hasProbleme && (
-          <span className="badge-perime flex-shrink-0">!</span>
-        )}
-
-        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          {hasProbleme && <span className="badge-perime">!</span>}
           <button
             className="text-xs px-2 py-1 rounded bg-white border border-gray-200
                        text-gray-600 hover:border-crf-rouge hover:text-crf-rouge transition-colors"
             onClick={() => onControler(tiroir)}
           >
-            Contrôler
+            <span className="sm:hidden">✓</span>
+            <span className="hidden sm:inline">Contrôler</span>
           </button>
           {isAdmin && (
             <>
@@ -413,6 +445,7 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
               onEdit={onEditStock}
               onDelete={onDeleteStock}
               onTransfer={onTransferStock}
+              highlighted={highlightArticleId === stock.article.id}
             />
           ))}
           {isAdmin && (
@@ -438,41 +471,46 @@ function ArmoireCard({ armoire, isAdmin, articles,
   onEditArmoire, onDeleteArmoire,
   onAddTiroir, onEditTiroir, onDeleteTiroir,
   onAddStock, onEditStock, onDeleteStock,
-  onControler, onTransferStock
+  onControler, onTransferStock, highlightArticleId
 }) {
   const [open, setOpen] = useState(true);
 
   return (
     <div className="card p-0 overflow-hidden">
       {/* Header armoire */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100
-                      cursor-pointer hover:bg-gray-50/60 transition-colors"
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-5 py-4
+                      border-b border-gray-100 cursor-pointer hover:bg-gray-50/60 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        {open
-          ? <IconChevronDown size={18} className="text-gray-400" />
-          : <IconChevronRight size={18} className="text-gray-400" />
-        }
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-crf-texte truncate">{armoire.nom}</h2>
-          {armoire.description && (
-            <p className="text-xs text-gray-400 truncate">{armoire.description}</p>
-          )}
+        {/* Ligne nom */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {open
+            ? <IconChevronDown size={18} className="text-gray-400 flex-shrink-0" />
+            : <IconChevronRight size={18} className="text-gray-400 flex-shrink-0" />
+          }
+          <div className="min-w-0">
+            <h2 className="font-semibold text-crf-texte">{armoire.nom}</h2>
+            {armoire.description && (
+              <p className="text-xs text-gray-400">{armoire.description}</p>
+            )}
+          </div>
         </div>
-        <span className="text-sm text-gray-400 flex-shrink-0">
-          {armoire.tiroirs?.length || 0} tiroir{armoire.tiroirs?.length !== 1 ? 's' : ''}
-        </span>
 
-        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        {/* Ligne actions */}
+        <div className="flex items-center gap-2 pl-9 sm:pl-0 flex-shrink-0"
+             onClick={e => e.stopPropagation()}>
+          <span className="text-sm text-gray-400 flex-1 sm:flex-none">
+            {armoire.tiroirs?.length || 0} tiroir{armoire.tiroirs?.length !== 1 ? 's' : ''}
+          </span>
           {isAdmin && (
-            <>
+            <div className="flex gap-1">
               <button
                 className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
                            bg-crf-rouge/10 text-crf-rouge hover:bg-crf-rouge/20 transition-colors"
                 onClick={() => onAddTiroir(armoire)}
               >
                 <IconPlus size={13} />
-                Tiroir
+                <span className="hidden sm:inline">Tiroir</span>
               </button>
               <button className="btn-icon" onClick={() => onEditArmoire(armoire)}>
                 <IconEdit size={15} />
@@ -480,7 +518,7 @@ function ArmoireCard({ armoire, isAdmin, articles,
               <button className="btn-icon hover:text-red-500" onClick={() => onDeleteArmoire(armoire)}>
                 <IconTrash size={15} />
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -507,6 +545,7 @@ function ArmoireCard({ armoire, isAdmin, articles,
               onDeleteStock={onDeleteStock}
               onControler={onControler}
               onTransferStock={onTransferStock}
+              highlightArticleId={highlightArticleId}
             />
           ))}
         </div>
@@ -736,6 +775,8 @@ function TransfertModal({ stock, tiroirId, lotsData, onTransfer, onClose, loadin
 
 export default function Armoire() {
   const { isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+  const highlightArticleId = searchParams.get('article') || null;
   const {
     armoires, loading, error, fetch,
     createArmoire, updateArmoire, deleteArmoire,
@@ -935,13 +976,13 @@ export default function Armoire() {
         title="Pharmacie"
         subtitle="Vue arborescence du stock en armoire"
         actions={
-          <div className="flex gap-2">
-            <button className="btn-secondary flex items-center gap-2" onClick={exportCSV}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button className="btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto" onClick={exportCSV}>
               📥 Exporter liste à commander
             </button>
             {isAdmin && (
               <button
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
                 onClick={() => setModal({ type: 'armoire' })}
               >
                 <IconPlus size={16} />
@@ -1007,6 +1048,7 @@ export default function Armoire() {
               onDeleteStock={handleDeleteStock}
               onControler={(t) => setModal({ type: 'controle', data: t })}
               onTransferStock={(stock, tiroirId) => setModal({ type: 'transfert', data: stock, context: { tiroirId } })}
+              highlightArticleId={highlightArticleId}
             />
           ))}
         </div>

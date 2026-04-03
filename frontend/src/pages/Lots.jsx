@@ -360,11 +360,11 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
       {lots.length > 0 && (
         <div className="mt-1 ml-1 space-y-0.5">
           {lots.map((lot, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs text-gray-500">
-              <span className="font-mono truncate max-w-[120px]">{lot.label}</span>
-              <span className="text-gray-400">×{lot.quantite}</span>
+            <div key={i} className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+              <span className="font-mono truncate max-w-[160px]">{lot.label}</span>
+              <span className="text-gray-400 flex-shrink-0">×{lot.quantite}</span>
               {lot.date_peremption && (
-                <span className="text-gray-400">exp. {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}</span>
+                <span className="text-gray-400 flex-shrink-0">exp. {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}</span>
               )}
             </div>
           ))}
@@ -382,26 +382,38 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock,
     <div className="border border-gray-100 rounded-md overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-gray-50
-                   transition-colors text-left"
+        className="w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5
+                   bg-white hover:bg-gray-50 transition-colors text-left"
       >
-        {open
-          ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
-          : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
-        }
-        <span className="flex-1 text-sm font-medium text-crf-texte">{pochette.nom}</span>
-        <span className="text-xs text-gray-500 flex-shrink-0">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
+        {/* Ligne nom */}
+        <div className="flex items-center gap-2 w-full min-w-0">
+          {open
+            ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+            : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
+          }
+          <span className="flex-1 text-sm font-medium text-crf-texte">{pochette.nom}</span>
+          {/* Boutons admin visibles desktop dans la ligne nom */}
+          {isAdmin && (
+            <div className="hidden sm:flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+              <button className="btn-icon p-1" onClick={() => onEdit(pochette)}><IconEdit size={13} /></button>
+              <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(pochette)}><IconTrash size={13} /></button>
+            </div>
+          )}
+        </div>
 
-        {isAdmin && (
-          <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <button className="btn-icon p-1" onClick={() => onEdit(pochette)}>
-              <IconEdit size={13} />
-            </button>
-            <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(pochette)}>
-              <IconTrash size={13} />
-            </button>
-          </div>
-        )}
+        {/* Ligne count + boutons admin (mobile uniquement) */}
+        <div className="flex items-center gap-2 pl-6 sm:hidden" onClick={e => e.stopPropagation()}>
+          <span className="text-xs text-gray-500 flex-1">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
+          {isAdmin && (
+            <div className="flex gap-1">
+              <button className="btn-icon p-1" onClick={() => onEdit(pochette)}><IconEdit size={13} /></button>
+              <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(pochette)}><IconTrash size={13} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Count desktop */}
+        <span className="hidden sm:block text-xs text-gray-500 flex-shrink-0">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
       </button>
 
       {open && (
@@ -438,51 +450,56 @@ function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPo
 
   return (
     <div className="card p-0 overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100
-                      cursor-pointer hover:bg-gray-50/60 transition-colors"
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-5 py-4
+                      border-b border-gray-100 cursor-pointer hover:bg-gray-50/60 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        {open
-          ? <IconChevronDown size={18} className="text-gray-400" />
-          : <IconChevronRight size={18} className="text-gray-400" />
-        }
-        {lot.photo_url && (
-          <img src={lot.photo_url} alt={lot.nom}
-            className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
+        {/* Ligne nom */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {open
+            ? <IconChevronDown size={18} className="text-gray-400 flex-shrink-0" />
+            : <IconChevronRight size={18} className="text-gray-400 flex-shrink-0" />
+          }
+          {lot.photo_url && (
+            <img src={lot.photo_url} alt={lot.nom}
+              className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+          )}
           <h2 className="font-semibold text-crf-texte">{lot.nom}</h2>
         </div>
-        <span className="text-sm text-gray-400 flex-shrink-0">
-          {pochetteCount} pochette{pochetteCount !== 1 ? 's' : ''}
-        </span>
 
-        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-          <button
-            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
-                       bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-            onClick={() => onShowQR(lot)}
-          >
-            📱 QR Code
-          </button>
-          {isAdmin && (
-            <>
-              <button
-                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
-                           bg-crf-rouge/10 text-crf-rouge hover:bg-crf-rouge/20 transition-colors"
-                onClick={() => onAddPochette(lot)}
-              >
-                <IconPlus size={13} />
-                Pochette
-              </button>
-              <button className="btn-icon" onClick={() => onEditLot(lot)}>
-                <IconEdit size={15} />
-              </button>
-              <button className="btn-icon hover:text-red-500" onClick={() => onDeleteLot(lot)}>
-                <IconTrash size={15} />
-              </button>
-            </>
-          )}
+        {/* Ligne actions (sous le nom sur mobile, aligné à droite sur desktop) */}
+        <div className="flex items-center gap-2 pl-7 sm:pl-0 flex-shrink-0"
+             onClick={e => e.stopPropagation()}>
+          <span className="text-xs text-gray-400 flex-1 sm:flex-none">
+            {pochetteCount} pochette{pochetteCount !== 1 ? 's' : ''}
+          </span>
+          <div className="flex gap-1">
+            <button
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
+                         bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+              onClick={() => onShowQR(lot)}
+            >
+              📱 <span className="hidden sm:inline">QR Code</span>
+            </button>
+            {isAdmin && (
+              <>
+                <button
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
+                             bg-crf-rouge/10 text-crf-rouge hover:bg-crf-rouge/20 transition-colors"
+                  onClick={() => onAddPochette(lot)}
+                >
+                  <IconPlus size={13} />
+                  <span className="hidden sm:inline">Pochette</span>
+                </button>
+                <button className="btn-icon" onClick={() => onEditLot(lot)}>
+                  <IconEdit size={15} />
+                </button>
+                <button className="btn-icon hover:text-red-500" onClick={() => onDeleteLot(lot)}>
+                  <IconTrash size={15} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

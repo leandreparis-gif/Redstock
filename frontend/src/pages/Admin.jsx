@@ -48,7 +48,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
         <textarea className="input resize-none" rows={2} value={form.description}
           onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Quantité minimale *</label>
           <input type="number" min="0" className="input" value={form.quantite_min}
@@ -113,27 +113,51 @@ function AdminArticles() {
       {loading ? (
         <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
       ) : (
-        <div className="overflow-x-auto card p-0">
-          <table className="table-auto">
-            <thead><tr><th>Nom</th><th>Catégorie</th><th>Qté min.</th><th>Périmable</th><th></th></tr></thead>
-            <tbody>
-              {articles.map(a => (
-                <tr key={a.id}>
-                  <td className="font-medium">{a.nom}</td>
-                  <td>{a.categorie}</td>
-                  <td>{a.quantite_min}</td>
-                  <td>{a.est_perimable ? '✓' : '—'}</td>
-                  <td className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <button className="btn-icon p-1" onClick={() => setModal({ type: 'article', data: a })}><IconEdit size={13} /></button>
-                      <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(a)}><IconTrash size={13} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Mobile card view */}
+          <div className="sm:hidden card p-0 divide-y divide-gray-100">
+            {articles.map(a => (
+              <div key={a.id} className="p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-crf-texte">{a.nom}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{a.categorie}</p>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-400">Qté min : {a.quantite_min}</span>
+                    {a.est_perimable && (
+                      <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">périmable</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0 mt-0.5">
+                  <button className="btn-icon p-1" onClick={() => setModal({ type: 'article', data: a })}><IconEdit size={13} /></button>
+                  <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(a)}><IconTrash size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto card p-0">
+            <table className="table-auto">
+              <thead><tr><th>Nom</th><th>Catégorie</th><th>Qté min.</th><th>Périmable</th><th></th></tr></thead>
+              <tbody>
+                {articles.map(a => (
+                  <tr key={a.id}>
+                    <td className="font-medium">{a.nom}</td>
+                    <td>{a.categorie}</td>
+                    <td>{a.quantite_min}</td>
+                    <td>{a.est_perimable ? '✓' : '—'}</td>
+                    <td className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <button className="btn-icon p-1" onClick={() => setModal({ type: 'article', data: a })}><IconEdit size={13} /></button>
+                        <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(a)}><IconTrash size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       {modal?.type === 'article' && <ArticleModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />}
       {toast && (
@@ -158,7 +182,7 @@ function UserModal({ initial, onSave, onClose, loading }) {
 
   return (
     <Modal title={initial ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'} onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Prénom *</label>
           <input className="input" value={form.prenom} onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))} />
@@ -169,7 +193,7 @@ function UserModal({ initial, onSave, onClose, loading }) {
             onChange={e => setForm(f => ({ ...f, login: e.target.value }))} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Qualification</label>
           <select className="select" value={form.qualification} onChange={e => setForm(f => ({ ...f, qualification: e.target.value }))}>
@@ -257,27 +281,49 @@ function AdminUtilisateurs() {
       {loading ? (
         <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
       ) : (
-        <div className="overflow-x-auto card p-0">
-          <table className="table-auto">
-            <thead><tr><th>Prénom</th><th>Login</th><th>Qualification</th><th>Rôle</th><th></th></tr></thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id}>
-                  <td className="font-medium">{u.prenom}</td>
-                  <td className="font-mono text-sm">{u.login}</td>
-                  <td>{u.qualification}</td>
-                  <td>{roleLabel[u.role] || u.role}</td>
-                  <td className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <button className="btn-icon p-1" onClick={() => setModal({ type: 'user', data: u })}><IconEdit size={13} /></button>
-                      <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(u)}><IconTrash size={13} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Mobile card view */}
+          <div className="sm:hidden card p-0 divide-y divide-gray-100">
+            {users.map(u => (
+              <div key={u.id} className="p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-crf-texte">{u.prenom}</p>
+                  <p className="font-mono text-xs text-gray-500">{u.login}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-400">{u.qualification}</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{roleLabel[u.role] || u.role}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0 mt-0.5">
+                  <button className="btn-icon p-1" onClick={() => setModal({ type: 'user', data: u })}><IconEdit size={13} /></button>
+                  <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(u)}><IconTrash size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto card p-0">
+            <table className="table-auto">
+              <thead><tr><th>Prénom</th><th>Login</th><th>Qualification</th><th>Rôle</th><th></th></tr></thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td className="font-medium">{u.prenom}</td>
+                    <td className="font-mono text-sm">{u.login}</td>
+                    <td>{u.qualification}</td>
+                    <td>{roleLabel[u.role] || u.role}</td>
+                    <td className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <button className="btn-icon p-1" onClick={() => setModal({ type: 'user', data: u })}><IconEdit size={13} /></button>
+                        <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(u)}><IconTrash size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       {modal?.type === 'user' && <UserModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />}
       {toast && (
@@ -354,40 +400,61 @@ function AdminLogs() {
           <p className="text-sm">Aucun log pour le moment.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto card p-0">
-          <table className="table-auto">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Action</th>
-                <th>Utilisateur</th>
-                <th>Détails</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map(log => {
-                const badge = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-600' };
-                return (
-                  <tr key={log.id}>
-                    <td className="text-xs text-gray-500 whitespace-nowrap">{fmt(log.created_at)}</td>
-                    <td>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.color}`}>
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="text-sm">
-                      {log.user_prenom
-                        ? <span>{log.user_prenom} <span className="text-gray-400 text-xs">({log.user_login})</span></span>
-                        : <span className="text-gray-400 text-xs">—</span>
-                      }
-                    </td>
-                    <td className="text-sm text-gray-600 max-w-xs truncate">{log.details || '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Mobile card view */}
+          <div className="sm:hidden card p-0 divide-y divide-gray-100">
+            {logs.map(log => {
+              const badge = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-600' };
+              return (
+                <div key={log.id} className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
+                    <span className="text-xs text-gray-400">{fmt(log.created_at)}</span>
+                  </div>
+                  {log.user_prenom && (
+                    <p className="text-sm text-crf-texte">{log.user_prenom} <span className="text-gray-400 text-xs">({log.user_login})</span></p>
+                  )}
+                  {log.details && <p className="text-xs text-gray-500 break-words">{log.details}</p>}
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto card p-0">
+            <table className="table-auto">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Action</th>
+                  <th>Utilisateur</th>
+                  <th>Détails</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map(log => {
+                  const badge = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-600' };
+                  return (
+                    <tr key={log.id}>
+                      <td className="text-xs text-gray-500 whitespace-nowrap">{fmt(log.created_at)}</td>
+                      <td>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.color}`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="text-sm">
+                        {log.user_prenom
+                          ? <span>{log.user_prenom} <span className="text-gray-400 text-xs">({log.user_login})</span></span>
+                          : <span className="text-gray-400 text-xs">—</span>
+                        }
+                      </td>
+                      <td className="text-sm text-gray-600 max-w-xs truncate">{log.details || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {totalPages > 1 && (

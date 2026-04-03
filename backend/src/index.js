@@ -11,6 +11,7 @@ const alertesRoutes = require('./routes/alertes');
 const uniformesRoutes = require('./routes/uniformes');
 const usersRoutes = require('./routes/users');
 const logsRoutes  = require('./routes/logs');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,6 +49,7 @@ app.use('/api/alertes', alertesRoutes);
 app.use('/api/uniformes', uniformesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/logs',  logsRoutes);
+app.use('/api/search', searchRoutes);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

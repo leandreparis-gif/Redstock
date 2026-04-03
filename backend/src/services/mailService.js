@@ -61,4 +61,74 @@ async function alerteStockBas({ articleNom, quantiteActuelle, quantiteMin, local
   });
 }
 
-module.exports = { alertePeremption, alerteStockBas };
+// ─── UNIFORMES ────────────────────────────────────────────────────────────────
+
+async function notifPretUniforme({ uniformeNom, taille, beneficiaire, qualification, dateRetourPrevue, destinataires }) {
+  const dateFormatee = new Date(dateRetourPrevue).toLocaleDateString('fr-FR');
+  await send({
+    to: destinataires,
+    subject: `Prêt uniforme — ${uniformeNom} (${taille}) à ${beneficiaire}`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Prêt d'uniforme</h2>
+        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p>Un uniforme a été <strong>prêté</strong> :</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire} (${qualification})</td></tr>
+          <tr><td style="padding:8px;color:#6b7280">Retour prévu le</td><td style="padding:8px;font-weight:600">${dateFormatee}</td></tr>
+        </table>
+      </div>
+    </div>`,
+  });
+}
+
+async function notifRetourUniforme({ uniformeNom, taille, beneficiaire, enRetard, remarques, destinataires }) {
+  const retardTag = enRetard ? ' <span style="color:#E30613;font-weight:700">(en retard)</span>' : '';
+  await send({
+    to: destinataires,
+    subject: `Retour uniforme — ${uniformeNom} (${taille}) par ${beneficiaire}`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#16a34a;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Retour d'uniforme</h2>
+        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p>Un uniforme a été <strong>retourné</strong>${retardTag} :</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire}</td></tr>
+          ${remarques ? `<tr><td style="padding:8px;color:#6b7280">Remarques</td><td style="padding:8px">${remarques}</td></tr>` : ''}
+        </table>
+      </div>
+    </div>`,
+  });
+}
+
+async function notifRetardUniforme({ uniformeNom, taille, beneficiaire, qualification, dateRetourPrevue, joursRetard, destinataires }) {
+  const dateFormatee = new Date(dateRetourPrevue).toLocaleDateString('fr-FR');
+  await send({
+    to: destinataires,
+    subject: `Retard retour uniforme — ${uniformeNom} (${taille}) — ${beneficiaire} (+${joursRetard}j)`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Retard de retour d'uniforme</h2>
+        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p style="color:#E30613;font-weight:600;font-size:16px">Un uniforme n'a pas été rendu à la date prévue.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire} (${qualification})</td></tr>
+          <tr><td style="padding:8px;color:#6b7280">Retour prévu le</td><td style="padding:8px;font-weight:600;color:#E30613">${dateFormatee}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Retard</td><td style="padding:8px;font-weight:700;color:#E30613">${joursRetard} jour${joursRetard > 1 ? 's' : ''}</td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:14px">Veuillez contacter le bénéficiaire pour organiser le retour.</p>
+      </div>
+    </div>`,
+  });
+}
+
+module.exports = { alertePeremption, alerteStockBas, notifPretUniforme, notifRetourUniforme, notifRetardUniforme };

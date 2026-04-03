@@ -5,7 +5,18 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { notifPretUniforme, notifRetourUniforme } = require('../services/mailService');
+
 const router = express.Router();
+
+/** Récupère les emails des admins de l'unité locale (destinataires notifs) */
+async function getAdminEmails(uniteLocaleId) {
+  const admins = await prisma.user.findMany({
+    where: { unite_locale_id: uniteLocaleId, role: 'ADMIN', email: { not: null } },
+    select: { email: true },
+  });
+  return admins.map(a => a.email).filter(Boolean);
+}
 
 router.use(authMiddleware);
 
@@ -204,6 +215,23 @@ router.post('/:id/pret', async (req, res) => {
       }),
     ]);
 
+    // Email aux admins (silent fail)
+    try {
+      const destinataires = await getAdminEmails(req.user.unite_locale_id);
+      if (destinataires.length) {
+        await notifPretUniforme({
+          uniformeNom: uniforme.nom,
+          taille: uniforme.taille,
+          beneficiaire: beneficiaire_prenom,
+          qualification: beneficiaire_qualification,
+          dateRetourPrevue: date_retour_prevue,
+          destinataires,
+        });
+      }
+    } catch (mailErr) {
+      console.error('[uniformes/pret] Erreur envoi email:', mailErr.message);
+    }
+
     res.status(201).json(mouvement);
   } catch (err) {
     console.error('[uniformes/pret]', err);
@@ -313,6 +341,24 @@ router.post('/:id/retour', async (req, res) => {
         data: { statut: 'DISPONIBLE' },
       }),
     ]);
+
+    // Email aux admins (silent fail)
+    try {
+      const destinataires = await getAdminEmails(req.user.unite_locale_id);
+      if (destinataires.length) {
+        const enRetard = mouvementActif?.date_retour_prevue && new Date(mouvementActif.date_retour_prevue) < dateRetour;
+        await notifRetourUniforme({
+          uniformeNom: uniforme.nom,
+          taille: uniforme.taille,
+          beneficiaire: mouvementActif?.beneficiaire_prenom || 'Inconnu',
+          enRetard: !!enRetard,
+          remarques: remarqueFinal,
+          destinataires,
+        });
+      }
+    } catch (mailErr) {
+      console.error('[uniformes/retour] Erreur envoi email:', mailErr.message);
+    }
 
     res.json({ message: 'Retour enregistré' });
   } catch (err) {

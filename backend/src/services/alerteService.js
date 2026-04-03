@@ -5,7 +5,7 @@
  */
 const cron = require('node-cron');
 const prisma = require('../lib/prisma');
-const { alertePeremption, alerteStockBas } = require('./mailService');
+const { alertePeremption, alerteStockBas, notifRetardUniforme } = require('./mailService');
 const JOURS_ALERTE = 30; // alerter si péremption < 30 jours
 
 async function verifierAlertes() {
@@ -116,9 +116,76 @@ async function verifierAlertesUL(uniteLocaleId) {
   }
 }
 
+// ─── RETARDS UNIFORMES ────────────────────────────────────────────────────────
+
+async function verifierRetardsUniformes() {
+  console.log('[CRON] Vérification retards uniformes — démarrage à', new Date().toISOString());
+
+  try {
+    const maintenant = new Date();
+
+    // Trouver tous les prêts en cours avec date de retour dépassée
+    const mouvementsEnRetard = await prisma.mouvementUniforme.findMany({
+      where: {
+        type: 'PRET',
+        date_retour_effective: null,
+        date_retour_prevue: { lt: maintenant },
+      },
+      include: {
+        uniforme: { include: { unite_locale: true } },
+      },
+    });
+
+    if (!mouvementsEnRetard.length) {
+      console.log('[CRON] Aucun retard uniforme détecté');
+      return;
+    }
+
+    // Grouper par unité locale pour un seul fetch d'emails admins par UL
+    const parUL = {};
+    for (const m of mouvementsEnRetard) {
+      const ulId = m.uniforme.unite_locale_id;
+      if (!parUL[ulId]) parUL[ulId] = [];
+      parUL[ulId].push(m);
+    }
+
+    for (const [ulId, mouvements] of Object.entries(parUL)) {
+      const admins = await prisma.user.findMany({
+        where: { unite_locale_id: ulId, role: 'ADMIN', email: { not: null } },
+        select: { email: true },
+      });
+      const destinataires = admins.map(a => a.email).filter(Boolean);
+      if (!destinataires.length) continue;
+
+      for (const m of mouvements) {
+        const joursRetard = Math.floor((maintenant - new Date(m.date_retour_prevue)) / (1000 * 60 * 60 * 24));
+        try {
+          await notifRetardUniforme({
+            uniformeNom: m.uniforme.nom,
+            taille: m.uniforme.taille,
+            beneficiaire: m.beneficiaire_prenom,
+            qualification: m.beneficiaire_qualification,
+            dateRetourPrevue: m.date_retour_prevue,
+            joursRetard,
+            destinataires,
+          });
+          console.log(`[CRON] Email retard envoyé — ${m.uniforme.nom} (+${joursRetard}j)`);
+        } catch (err) {
+          console.error(`[CRON] Erreur email retard uniforme:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[CRON] Erreur vérification retards uniformes:', err);
+  }
+}
+
 // Planifié pour tourner à 02:00 chaque nuit
 cron.schedule('0 2 * * *', verifierAlertes);
 
-console.log('[CRON] alerteService chargé — cron planifié à 02h00 chaque nuit');
+// Retards uniformes à 08:00 chaque matin
+cron.schedule('0 8 * * *', verifierRetardsUniformes);
 
-module.exports = { verifierAlertes };
+console.log('[CRON] alerteService chargé — crons planifiés (alertes 02h00, retards uniformes 08h00)');
+
+module.exports = { verifierAlertes, verifierRetardsUniformes };

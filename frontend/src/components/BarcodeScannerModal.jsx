@@ -19,42 +19,119 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-// ─── Camera Scanner (html5-qrcode) ──────────────────────────────────────────
+// ─── Camera Scanner ─────────────────────────────────────────────────────────
+// Utilise BarcodeDetector natif (rapide, hardware) si disponible,
+// sinon fallback sur html5-qrcode.
 
-function CameraScanner({ onDetected }) {
+function NativeCameraScanner({ onDetected }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const onDetectedRef = useRef(onDetected);
+  const [cameraError, setCameraError] = useState(null);
+
+  useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
+
+  useEffect(() => {
+    let mounted = true;
+    let animId = null;
+
+    async function start() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        video.srcObject = stream;
+        await video.play();
+
+        const detector = new window.BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
+        });
+
+        const scan = async () => {
+          if (!mounted) return;
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes.length > 0 && onDetectedRef.current) {
+              onDetectedRef.current(barcodes[0].rawValue);
+              return; // Stop apres detection
+            }
+          } catch {}
+          animId = requestAnimationFrame(scan);
+        };
+        animId = requestAnimationFrame(scan);
+      } catch (err) {
+        if (mounted) setCameraError('Impossible d\'acceder a la camera');
+      }
+    }
+
+    start();
+
+    return () => {
+      mounted = false;
+      if (animId) cancelAnimationFrame(animId);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  if (cameraError) {
+    return (
+      <div className="bg-red-50 rounded-lg p-4 text-center">
+        <p className="text-sm text-red-600">{cameraError}</p>
+        <p className="text-xs text-gray-400 mt-1">Verifiez les permissions camera du navigateur</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <video
+        ref={videoRef}
+        className="w-full rounded-lg bg-black"
+        playsInline
+        muted
+        style={{ maxHeight: 300 }}
+      />
+      {/* Guide visuel */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-64 h-20 border-2 border-crf-rouge/60 rounded-lg" />
+      </div>
+      <p className="text-xs text-gray-400 text-center mt-2">
+        Pointez la camera vers le code-barres
+      </p>
+    </div>
+  );
+}
+
+function FallbackCameraScanner({ onDetected }) {
   const onDetectedRef = useRef(onDetected);
   const scannerRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
-  // Garder la ref a jour sans relancer le useEffect
-  useEffect(() => {
-    onDetectedRef.current = onDetected;
-  }, [onDetected]);
+  useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
 
   useEffect(() => {
     let mounted = true;
-    let scanner = null;
 
     import('html5-qrcode').then(({ Html5Qrcode }) => {
       if (!mounted) return;
 
-      scanner = new Html5Qrcode('barcode-camera-reader');
+      const scanner = new Html5Qrcode('barcode-camera-reader');
       scannerRef.current = scanner;
 
       scanner.start(
         { facingMode: 'environment' },
-        {
-          fps: 5,
-          qrbox: { width: 280, height: 150 },
-        },
+        { fps: 15, qrbox: { width: 280, height: 120 } },
         (decodedText) => {
-          if (onDetectedRef.current) {
-            onDetectedRef.current(decodedText);
-          }
+          if (onDetectedRef.current) onDetectedRef.current(decodedText);
         },
         () => {}
-      ).catch((err) => {
-        console.warn('Camera scanner error:', err);
+      ).catch(() => {
         if (mounted) setCameraError('Impossible d\'acceder a la camera');
       });
     });
@@ -63,15 +140,12 @@ function CameraScanner({ onDetected }) {
       mounted = false;
       const s = scannerRef.current;
       if (s) {
-        s.stop().then(() => {
-          try { s.clear(); } catch {}
-        }).catch(() => {
-          try { s.clear(); } catch {}
-        });
+        s.stop().then(() => { try { s.clear(); } catch {} })
+          .catch(() => { try { s.clear(); } catch {} });
         scannerRef.current = null;
       }
     };
-  }, []); // Pas de deps → ne se relance jamais
+  }, []);
 
   if (cameraError) {
     return (
@@ -86,10 +160,17 @@ function CameraScanner({ onDetected }) {
     <div>
       <div id="barcode-camera-reader" className="rounded-lg overflow-hidden" />
       <p className="text-xs text-gray-400 text-center mt-2">
-        Pointez la camera vers le code-barres de l'article
+        Pointez la camera vers le code-barres
       </p>
     </div>
   );
+}
+
+function CameraScanner({ onDetected }) {
+  const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  return hasNative
+    ? <NativeCameraScanner onDetected={onDetected} />
+    : <FallbackCameraScanner onDetected={onDetected} />;
 }
 
 // ─── Douchette / Saisie manuelle ────────────────────────────────────────────

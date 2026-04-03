@@ -6,6 +6,8 @@ const { PrismaClient } = require('@prisma/client');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const logAction = require('../utils/logAction');
+
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -75,6 +77,13 @@ router.post('/', async (req, res) => {
         unite_locale_id: req.user.unite_locale_id,
       },
       select: { id: true, prenom: true, qualification: true, role: true, login: true, created_at: true },
+    });
+
+    logAction(prisma, {
+      uniteLocaleId: req.user.unite_locale_id,
+      action: 'USER_CREATE',
+      details: `Compte créé : ${prenom} (${login}) — rôle ${role}`,
+      user: req.user,
     });
 
     res.status(201).json(user);
@@ -157,6 +166,14 @@ router.delete('/:id', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
     await prisma.user.delete({ where: { id: req.params.id } });
+
+    logAction(prisma, {
+      uniteLocaleId: req.user.unite_locale_id,
+      action: 'USER_DELETE',
+      details: `Compte supprimé : ${user.prenom} (${user.login})`,
+      user: req.user,
+    });
+
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
     console.error('[users/DELETE]', err);

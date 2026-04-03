@@ -5,6 +5,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
+const logAction = require('../utils/logAction');
+
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -45,6 +47,13 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    });
+
+    logAction(prisma, {
+      uniteLocaleId: user.unite_locale_id,
+      action: 'LOGIN',
+      details: `Connexion réussie`,
+      user: { prenom: user.prenom, login: user.login },
     });
 
     res.json({

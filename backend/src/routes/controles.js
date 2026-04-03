@@ -4,6 +4,8 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const authMiddleware = require('../middleware/auth');
 
+const logAction = require('../utils/logAction');
+
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -143,6 +145,13 @@ router.post('/', async (req, res) => {
       ));
     }
 
+    logAction(prisma, {
+      uniteLocaleId: req.user.unite_locale_id,
+      action: 'CONTROLE',
+      details: `Contrôle ${type} — ${statut} — par ${controleur_prenom}`,
+      user: req.user,
+    });
+
     res.status(201).json(controle);
   } catch (err) {
     console.error('[controles/POST]', err);
@@ -192,6 +201,12 @@ router.post('/public', async (req, res) => {
         })
       ));
     }
+
+    logAction(prisma, {
+      uniteLocaleId: lot.unite_locale_id,
+      action: 'CONTROLE_QR',
+      details: `Contrôle QR lot "${lot.nom}" — ${statut} — par ${controleur_prenom}`,
+    });
 
     res.status(201).json(controle);
   } catch (err) {

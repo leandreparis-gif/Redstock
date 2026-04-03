@@ -23,6 +23,20 @@ model UniteLocale {
   uniformes        Uniforme[]
   stockTiroirs     StockTiroir[]
   stockPochettes   StockPochette[]
+  logs             Log[]
+}
+
+// ─── JOURNAL D'ACTIVITÉ ───────────────────────────────────────────────────────
+model Log {
+  id          String   @id @default(cuid())
+  action      String   // LOGIN, STOCK_UPDATE, CONTROLE, USER_CREATE, etc.
+  details     String?
+  user_prenom String?
+  user_login  String?
+  created_at  DateTime @default(now())
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
 }
 
 // ─── UTILISATEUR ──────────────────────────────────────────────────────────────

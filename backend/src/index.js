@@ -10,6 +10,7 @@ const controlesRoutes = require('./routes/controles');
 const alertesRoutes = require('./routes/alertes');
 const uniformesRoutes = require('./routes/uniformes');
 const usersRoutes = require('./routes/users');
+const logsRoutes  = require('./routes/logs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,6 +47,7 @@ app.use('/api/controles', controlesRoutes);
 app.use('/api/alertes', alertesRoutes);
 app.use('/api/uniformes', uniformesRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/logs',  logsRoutes);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

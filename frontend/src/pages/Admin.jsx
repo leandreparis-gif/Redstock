@@ -289,12 +289,127 @@ function AdminUtilisateurs() {
   );
 }
 
+// ─── Section Logs ─────────────────────────────────────────────────────────────
+
+const ACTION_LABELS = {
+  LOGIN:        { label: 'Connexion',      color: 'bg-blue-100 text-blue-700' },
+  CONTROLE:     { label: 'Contrôle',       color: 'bg-green-100 text-green-700' },
+  CONTROLE_QR:  { label: 'Contrôle QR',   color: 'bg-teal-100 text-teal-700' },
+  USER_CREATE:  { label: 'Compte créé',   color: 'bg-purple-100 text-purple-700' },
+  USER_DELETE:  { label: 'Compte supprimé', color: 'bg-red-100 text-red-700' },
+  STOCK_UPDATE: { label: 'Stock mis à jour', color: 'bg-orange-100 text-orange-700' },
+};
+
+function AdminLogs() {
+  const [logs, setLogs]     = useState([]);
+  const [total, setTotal]   = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage]     = useState(1);
+  const [filter, setFilter] = useState('');
+  const limit = 50;
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit, page });
+      if (filter) params.set('action', filter);
+      const { data } = await apiClient.get(`/logs?${params}`);
+      setLogs(data.logs);
+      setTotal(data.total);
+    } catch { setLogs([]); }
+    finally { setLoading(false); }
+  }, [page, filter]);
+
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  const fmt = (iso) => new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  const actions = Object.keys(ACTION_LABELS);
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <p className="text-sm text-gray-500">{total} entrée{total !== 1 ? 's' : ''}</p>
+        <div className="flex gap-2">
+          <select className="select text-sm py-1.5" value={filter}
+            onChange={e => { setFilter(e.target.value); setPage(1); }}>
+            <option value="">Toutes les actions</option>
+            {actions.map(a => (
+              <option key={a} value={a}>{ACTION_LABELS[a]?.label || a}</option>
+            ))}
+          </select>
+          <button className="btn-secondary text-sm py-1.5" onClick={fetchLogs}>↻ Actualiser</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
+      ) : logs.length === 0 ? (
+        <div className="card text-center py-12 text-gray-400">
+          <p className="text-3xl mb-2">📋</p>
+          <p className="text-sm">Aucun log pour le moment.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto card p-0">
+          <table className="table-auto">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Utilisateur</th>
+                <th>Détails</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map(log => {
+                const badge = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-600' };
+                return (
+                  <tr key={log.id}>
+                    <td className="text-xs text-gray-500 whitespace-nowrap">{fmt(log.created_at)}</td>
+                    <td>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                    </td>
+                    <td className="text-sm">
+                      {log.user_prenom
+                        ? <span>{log.user_prenom} <span className="text-gray-400 text-xs">({log.user_login})</span></span>
+                        : <span className="text-gray-400 text-xs">—</span>
+                      }
+                    </td>
+                    <td className="text-sm text-gray-600 max-w-xs truncate">{log.details || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <button className="btn-secondary text-sm py-1" disabled={page === 1}
+            onClick={() => setPage(p => p - 1)}>← Précédent</button>
+          <span className="text-sm text-gray-500">Page {page} / {totalPages}</span>
+          <button className="btn-secondary text-sm py-1" disabled={page === totalPages}
+            onClick={() => setPage(p => p + 1)}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Navigation Admin ─────────────────────────────────────────────────────────
 
 function AdminNav() {
   const links = [
     { to: '/admin/articles',     label: 'Articles' },
     { to: '/admin/utilisateurs', label: 'Utilisateurs' },
+    { to: '/admin/logs',         label: '📋 Logs' },
   ];
   return (
     <nav className="flex gap-1 mb-6 flex-wrap">
@@ -323,6 +438,7 @@ export default function Admin() {
         } />
         <Route path="articles"     element={<AdminArticles />} />
         <Route path="utilisateurs" element={<AdminUtilisateurs />} />
+        <Route path="logs"         element={<AdminLogs />} />
       </Routes>
     </div>
   );

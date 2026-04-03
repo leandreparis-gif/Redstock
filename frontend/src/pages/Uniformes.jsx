@@ -101,6 +101,7 @@ function UniformeModal({ initial, onSave, onClose, loading }) {
 function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
   const [form, setForm] = useState({
     beneficiaire_prenom: '',
+    beneficiaire_email: '',
     beneficiaire_qualification: 'PSE2',
     date_retour_prevue: '',
     remarques: '',
@@ -149,6 +150,14 @@ function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
             <input className="input" value={form.beneficiaire_prenom}
               onChange={e => setForm(f => ({ ...f, beneficiaire_prenom: e.target.value }))}
               placeholder="ex : Jean" />
+          </div>
+
+          <div>
+            <label className="label">Email du bénéficiaire</label>
+            <input type="email" className="input" value={form.beneficiaire_email}
+              onChange={e => setForm(f => ({ ...f, beneficiaire_email: e.target.value }))}
+              placeholder="ex : jean@croix-rouge.fr" />
+            <p className="text-xs text-gray-400 mt-1">Un email de confirmation sera envoyé si renseigné</p>
           </div>
 
           <div>

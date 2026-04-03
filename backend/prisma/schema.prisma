@@ -275,6 +275,7 @@ model MouvementUniforme {
   id                       String          @id @default(cuid())
   type                     TypeMouvement
   beneficiaire_prenom      String
+  beneficiaire_email       String?
   beneficiaire_qualification Qualification
   date_mouvement           DateTime        @default(now())
   date_retour_prevue       DateTime?       // null si attribution définitive

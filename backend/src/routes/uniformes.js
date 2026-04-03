@@ -9,14 +9,6 @@ const { notifPretUniforme, notifRetourUniforme } = require('../services/mailServ
 
 const router = express.Router();
 
-/** Récupère les emails des admins de l'unité locale (destinataires notifs) */
-async function getAdminEmails(uniteLocaleId) {
-  const admins = await prisma.user.findMany({
-    where: { unite_locale_id: uniteLocaleId, role: 'ADMIN', email: { not: null } },
-    select: { email: true },
-  });
-  return admins.map(a => a.email).filter(Boolean);
-}
 
 router.use(authMiddleware);
 
@@ -180,7 +172,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
  * Body : { beneficiaire_prenom, beneficiaire_qualification, date_retour_prevue }
  */
 router.post('/:id/pret', async (req, res) => {
-  const { beneficiaire_prenom, beneficiaire_qualification, date_retour_prevue } = req.body;
+  const { beneficiaire_prenom, beneficiaire_email, beneficiaire_qualification, date_retour_prevue } = req.body;
 
   if (!beneficiaire_prenom || !beneficiaire_qualification || !date_retour_prevue) {
     return res.status(400).json({ error: 'Prénom, qualification et date de retour prévue requis' });
@@ -205,6 +197,7 @@ router.post('/:id/pret', async (req, res) => {
           uniforme_id: req.params.id,
           type: 'PRET',
           beneficiaire_prenom,
+          beneficiaire_email: beneficiaire_email || null,
           beneficiaire_qualification,
           date_retour_prevue: new Date(date_retour_prevue),
         },
@@ -215,21 +208,20 @@ router.post('/:id/pret', async (req, res) => {
       }),
     ]);
 
-    // Email aux admins (silent fail)
-    try {
-      const destinataires = await getAdminEmails(req.user.unite_locale_id);
-      if (destinataires.length) {
+    // Email au bénéficiaire (silent fail)
+    if (beneficiaire_email) {
+      try {
         await notifPretUniforme({
           uniformeNom: uniforme.nom,
           taille: uniforme.taille,
           beneficiaire: beneficiaire_prenom,
           qualification: beneficiaire_qualification,
           dateRetourPrevue: date_retour_prevue,
-          destinataires,
+          destinataires: [beneficiaire_email],
         });
+      } catch (mailErr) {
+        console.error('[uniformes/pret] Erreur envoi email:', mailErr.message);
       }
-    } catch (mailErr) {
-      console.error('[uniformes/pret] Erreur envoi email:', mailErr.message);
     }
 
     res.status(201).json(mouvement);
@@ -245,7 +237,7 @@ router.post('/:id/pret', async (req, res) => {
  * Body : { beneficiaire_prenom, beneficiaire_qualification }
  */
 router.post('/:id/attribution', async (req, res) => {
-  const { beneficiaire_prenom, beneficiaire_qualification } = req.body;
+  const { beneficiaire_prenom, beneficiaire_email, beneficiaire_qualification } = req.body;
 
   if (!beneficiaire_prenom || !beneficiaire_qualification) {
     return res.status(400).json({ error: 'Prénom et qualification requis' });
@@ -269,6 +261,7 @@ router.post('/:id/attribution', async (req, res) => {
           uniforme_id: req.params.id,
           type: 'ATTRIBUTION',
           beneficiaire_prenom,
+          beneficiaire_email: beneficiaire_email || null,
           beneficiaire_qualification,
           date_retour_prevue: null, // Attribution définitive
         },
@@ -342,22 +335,21 @@ router.post('/:id/retour', async (req, res) => {
       }),
     ]);
 
-    // Email aux admins (silent fail)
-    try {
-      const destinataires = await getAdminEmails(req.user.unite_locale_id);
-      if (destinataires.length) {
+    // Email au bénéficiaire (silent fail)
+    if (mouvementActif?.beneficiaire_email) {
+      try {
         const enRetard = mouvementActif?.date_retour_prevue && new Date(mouvementActif.date_retour_prevue) < dateRetour;
         await notifRetourUniforme({
           uniformeNom: uniforme.nom,
           taille: uniforme.taille,
-          beneficiaire: mouvementActif?.beneficiaire_prenom || 'Inconnu',
+          beneficiaire: mouvementActif.beneficiaire_prenom,
           enRetard: !!enRetard,
           remarques: remarqueFinal,
-          destinataires,
+          destinataires: [mouvementActif.beneficiaire_email],
         });
+      } catch (mailErr) {
+        console.error('[uniformes/retour] Erreur envoi email:', mailErr.message);
       }
-    } catch (mailErr) {
-      console.error('[uniformes/retour] Erreur envoi email:', mailErr.message);
     }
 
     res.json({ message: 'Retour enregistré' });

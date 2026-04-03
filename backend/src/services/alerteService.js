@@ -141,38 +141,23 @@ async function verifierRetardsUniformes() {
       return;
     }
 
-    // Grouper par unité locale pour un seul fetch d'emails admins par UL
-    const parUL = {};
     for (const m of mouvementsEnRetard) {
-      const ulId = m.uniforme.unite_locale_id;
-      if (!parUL[ulId]) parUL[ulId] = [];
-      parUL[ulId].push(m);
-    }
+      if (!m.beneficiaire_email) continue;
 
-    for (const [ulId, mouvements] of Object.entries(parUL)) {
-      const admins = await prisma.user.findMany({
-        where: { unite_locale_id: ulId, role: 'ADMIN', email: { not: null } },
-        select: { email: true },
-      });
-      const destinataires = admins.map(a => a.email).filter(Boolean);
-      if (!destinataires.length) continue;
-
-      for (const m of mouvements) {
-        const joursRetard = Math.floor((maintenant - new Date(m.date_retour_prevue)) / (1000 * 60 * 60 * 24));
-        try {
-          await notifRetardUniforme({
-            uniformeNom: m.uniforme.nom,
-            taille: m.uniforme.taille,
-            beneficiaire: m.beneficiaire_prenom,
-            qualification: m.beneficiaire_qualification,
-            dateRetourPrevue: m.date_retour_prevue,
-            joursRetard,
-            destinataires,
-          });
-          console.log(`[CRON] Email retard envoyé — ${m.uniforme.nom} (+${joursRetard}j)`);
-        } catch (err) {
-          console.error(`[CRON] Erreur email retard uniforme:`, err.message);
-        }
+      const joursRetard = Math.floor((maintenant - new Date(m.date_retour_prevue)) / (1000 * 60 * 60 * 24));
+      try {
+        await notifRetardUniforme({
+          uniformeNom: m.uniforme.nom,
+          taille: m.uniforme.taille,
+          beneficiaire: m.beneficiaire_prenom,
+          qualification: m.beneficiaire_qualification,
+          dateRetourPrevue: m.date_retour_prevue,
+          joursRetard,
+          destinataires: [m.beneficiaire_email],
+        });
+        console.log(`[CRON] Email retard envoyé à ${m.beneficiaire_email} — ${m.uniforme.nom} (+${joursRetard}j)`);
+      } catch (err) {
+        console.error(`[CRON] Erreur email retard uniforme:`, err.message);
       }
     }
   } catch (err) {

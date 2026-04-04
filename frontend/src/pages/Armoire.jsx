@@ -863,28 +863,32 @@ export default function Armoire() {
         items: items || [],
       });
 
-      // Générer le rapport PDF
-      const tiroir = modal?.data;
-      const armoire = armoires.find(a => a.tiroirs.some(t => t.id === tiroirId));
-      const nomElement = armoire ? `${armoire.nom} > ${tiroir?.nom || ''}` : tiroir?.nom || '';
-      generateRapportControle({
-        type: 'TIROIR',
-        nomElement,
-        date: new Date(),
-        controleur: controleur_prenom,
-        qualification: controleur_qualification || 'PSE2',
-        statut,
-        items: (tiroir?.stocks || []).map(s => ({
-          article_nom: s.article.nom,
-          pochette_nom: tiroir?.nom || '',
-          qty_attendue: s.quantite_actuelle,
-          qty_reelle: items?.find(i => i.stock_id === s.id)?.qty_reelle ?? s.quantite_actuelle,
-          expired: (s.lots || []).some(l => isExpiredDate(l.date_peremption)),
-        })),
-        anomalies: remarques,
-      });
+      // Générer le rapport PDF (ne bloque pas le contrôle si erreur)
+      try {
+        const tiroir = modal?.data;
+        const armoire = armoires.find(a => a.tiroirs.some(t => t.id === tiroirId));
+        const nomElement = armoire ? `${armoire.nom} > ${tiroir?.nom || ''}` : tiroir?.nom || '';
+        generateRapportControle({
+          type: 'TIROIR',
+          nomElement,
+          date: new Date(),
+          controleur: controleur_prenom,
+          qualification: controleur_qualification || 'PSE2',
+          statut,
+          items: (tiroir?.stocks || []).map(s => ({
+            article_nom: s.article.nom,
+            pochette_nom: tiroir?.nom || '',
+            qty_attendue: s.quantite_actuelle,
+            qty_reelle: items?.find(i => i.stock_id === s.id)?.qty_reelle ?? s.quantite_actuelle,
+            expired: (s.lots || []).some(l => isExpiredDate(l.date_peremption)),
+          })),
+          anomalies: remarques,
+        });
+      } catch (pdfErr) {
+        console.error('[PDF] Erreur génération rapport:', pdfErr);
+      }
 
-      showToast('Contrôle enregistré — rapport PDF téléchargé');
+      showToast('Contrôle enregistré');
       closeModal();
       fetch();
     } catch (e) {

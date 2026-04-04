@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import LogoCRF from '../components/LogoCRF';
+import { generateRapportControle } from '../utils/pdfReport';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -178,6 +179,27 @@ export default function ControleLot() {
         ) : (
           <p className="mt-3 text-sm text-orange-700 font-medium">⚠ {issues.length} anomalie{issues.length > 1 ? 's' : ''} signalée{issues.length > 1 ? 's' : ''}</p>
         )}
+        <button
+          className="mt-5 w-full bg-crf-rouge text-white font-semibold py-3 rounded-xl text-sm"
+          onClick={() => generateRapportControle({
+            type: 'LOT',
+            nomElement: lot.nom,
+            date: new Date(),
+            controleur: prenom,
+            qualification: 'PSE2',
+            statut,
+            items: items.map(item => ({
+              article_nom: item.article_nom,
+              pochette_nom: item.pochette_nom,
+              qty_attendue: item.qty_attendue,
+              qty_reelle: checks[item.id]?.qty_reelle ?? item.qty_attendue,
+              expired: item.lots.some(l => isExpired(l.date_peremption)),
+            })),
+            anomalies: remarquesAuto,
+          })}
+        >
+          Télécharger le rapport PDF
+        </button>
       </div>
     </div>
   );

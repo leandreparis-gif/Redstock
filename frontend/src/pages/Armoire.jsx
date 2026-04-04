@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useArmoires } from '../hooks/useArmoires';
 import { useArticles } from '../hooks/useArticles';
+import { generateRapportControle } from '../utils/pdfReport';
 import { useLots } from '../hooks/useLots';
 import apiClient from '../api/client';
 
@@ -861,7 +862,29 @@ export default function Armoire() {
         remarques: remarques || null,
         items: items || [],
       });
-      showToast('Contrôle enregistré');
+
+      // Générer le rapport PDF
+      const tiroir = modal?.data;
+      const armoire = armoires.find(a => a.tiroirs.some(t => t.id === tiroirId));
+      const nomElement = armoire ? `${armoire.nom} > ${tiroir?.nom || ''}` : tiroir?.nom || '';
+      generateRapportControle({
+        type: 'TIROIR',
+        nomElement,
+        date: new Date(),
+        controleur: controleur_prenom,
+        qualification: controleur_qualification || 'PSE2',
+        statut,
+        items: (tiroir?.stocks || []).map(s => ({
+          article_nom: s.article.nom,
+          pochette_nom: tiroir?.nom || '',
+          qty_attendue: s.quantite_actuelle,
+          qty_reelle: items?.find(i => i.stock_id === s.id)?.qty_reelle ?? s.quantite_actuelle,
+          expired: (s.lots || []).some(l => isExpiredDate(l.date_peremption)),
+        })),
+        anomalies: remarques,
+      });
+
+      showToast('Contrôle enregistré — rapport PDF téléchargé');
       closeModal();
       fetch();
     } catch (e) {

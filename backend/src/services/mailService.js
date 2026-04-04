@@ -17,8 +17,12 @@ async function send({ to, subject, html }) {
     return;
   }
   try {
-    await resend.emails.send({ from: MAIL_FROM, to, subject, html });
-    console.log(`[mailService] Email envoyé à ${to} — ${subject}`);
+    const { data, error } = await resend.emails.send({ from: MAIL_FROM, to, subject, html });
+    if (error) {
+      console.error(`[mailService] Erreur Resend:`, JSON.stringify(error));
+      return;
+    }
+    console.log(`[mailService] Email envoyé à ${to} — ${subject} (id: ${data?.id})`);
   } catch (err) {
     console.error('[mailService] Erreur envoi email:', err.message);
   }

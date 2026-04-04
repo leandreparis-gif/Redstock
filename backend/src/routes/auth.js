@@ -48,18 +48,20 @@ router.post('/login', async (req, res) => {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     });
 
-    logAction(prisma, {
-      uniteLocaleId: user.unite_locale_id,
-      action: 'LOGIN',
-      details: `Connexion réussie`,
-      user: { prenom: user.prenom, login: user.login },
-    });
+    if (user.unite_locale_id) {
+      logAction(prisma, {
+        uniteLocaleId: user.unite_locale_id,
+        action: 'LOGIN',
+        details: `Connexion réussie`,
+        user: { prenom: user.prenom, login: user.login },
+      });
+    }
 
     res.json({
       token,
       user: {
         ...payload,
-        unite_locale_nom: user.unite_locale.nom,
+        unite_locale_nom: user.unite_locale?.nom || null,
       },
     });
   } catch (err) {
@@ -106,7 +108,7 @@ router.get('/me', async (req, res) => {
       role: user.role,
       login: user.login,
       unite_locale_id: user.unite_locale_id,
-      unite_locale_nom: user.unite_locale.nom,
+      unite_locale_nom: user.unite_locale?.nom || null,
     });
   } catch (err) {
     res.status(401).json({ error: 'Token invalide ou expiré' });

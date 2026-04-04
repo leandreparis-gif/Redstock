@@ -5,6 +5,8 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -30,7 +32,7 @@ function generateEAN13() {
 router.get('/', async (req, res) => {
   try {
     const articles = await prisma.article.findMany({
-      where: { unite_locale_id: req.user.unite_locale_id },
+      where: { ...getUlFilter(req) },
       orderBy: [{ categorie: 'asc' }, { nom: 'asc' }],
     });
     res.json(articles);
@@ -49,18 +51,19 @@ router.get('/barcode/:code', async (req, res) => {
     const article = await prisma.article.findFirst({
       where: {
         code_barre: req.params.code,
-        unite_locale_id: req.user.unite_locale_id,
+        ...getUlFilter(req),
       },
     });
     if (!article) return res.status(404).json({ error: 'Article non trouvé' });
 
+    const ulFilterArticle = { article_id: article.id, ...getUlFilter(req) };
     const [stockTiroirs, stockPochettes] = await Promise.all([
       prisma.stockTiroir.findMany({
-        where: { article_id: article.id, unite_locale_id: req.user.unite_locale_id },
+        where: ulFilterArticle,
         include: { tiroir: { include: { armoire: true } } },
       }),
       prisma.stockPochette.findMany({
-        where: { article_id: article.id, unite_locale_id: req.user.unite_locale_id },
+        where: ulFilterArticle,
         include: { pochette: { include: { lot: true } } },
       }),
     ]);
@@ -100,7 +103,7 @@ router.post('/', requireAdmin, async (req, res) => {
         quantite_min: quantite_min ?? 1,
         categorie,
         est_perimable: est_perimable ?? false,
-        unite_locale_id: req.user.unite_locale_id,
+        unite_locale_id: getUlId(req),
       },
     });
     res.status(201).json(article);
@@ -121,7 +124,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Article introuvable' });
 
@@ -152,7 +155,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Article introuvable' });
 

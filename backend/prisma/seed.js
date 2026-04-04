@@ -35,8 +35,20 @@ async function main() {
   console.log(`✅ UL créée : ${ul.nom}`);
 
   // ─── UTILISATEURS ──────────────────────────────────────────────────────────
+  const superAdminHash = await bcrypt.hash('leandre', 10);
   const adminHash = await bcrypt.hash('admin123', 10);
   const controleurHash = await bcrypt.hash('secours123', 10);
+
+  const superAdmin = await prisma.user.create({
+    data: {
+      prenom: 'Leandre',
+      qualification: 'CI',
+      role: 'SUPER_ADMIN',
+      login: 'leandre',
+      password_hash: superAdminHash,
+      // Pas d'unite_locale_id — super admin national
+    },
+  });
 
   const admin = await prisma.user.create({
     data: {
@@ -53,13 +65,13 @@ async function main() {
     data: {
       prenom: 'Jean',
       qualification: 'PSE2',
-      role: 'CONTROLEUR',
+      role: 'CONTRIBUTEUR',
       login: 'jean.dupont',
       password_hash: controleurHash,
       unite_locale_id: ul.id,
     },
   });
-  console.log(`✅ Utilisateurs créés : ${admin.login}, ${controleur.login}`);
+  console.log(`✅ Utilisateurs créés : ${superAdmin.login}, ${admin.login}, ${controleur.login}`);
 
   // ─── ARTICLES ──────────────────────────────────────────────────────────────
   const today = new Date();
@@ -346,8 +358,9 @@ async function main() {
   console.log('✅ 2 alertes actives créées');
 
   console.log('\n✨ Seed terminé avec succès !');
-  console.log('   Admin     : login=admin        / mdp=admin123');
-  console.log('   Contrôleur : login=jean.dupont  / mdp=secours123');
+  console.log('   Super Admin : login=leandre      / mdp=leandre');
+  console.log('   Admin       : login=admin        / mdp=admin123');
+  console.log('   Contributeur: login=jean.dupont  / mdp=secours123');
   console.log(`   QR lot SAC-DPS-01 : token=${lot.qr_code_token}`);
 }
 

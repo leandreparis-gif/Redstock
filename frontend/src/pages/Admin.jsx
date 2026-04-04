@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader';
 import { IconPlus, IconEdit, IconTrash, IconPrint, IconBarcode } from '../components/Icons';
 import apiClient from '../api/client';
 import { useArticles } from '../hooks/useArticles';
+import { useAuth } from '../context/AuthContext';
 import JsBarcode from 'jsbarcode';
 
 import Modal from '../components/Modal';
@@ -361,7 +362,7 @@ function AdminUtilisateurs() {
     catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
   };
 
-  const roleLabel = { ADMIN: '🔑 Admin', CONTRIBUTEUR: 'Contributeur' };
+  const roleLabel = { SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', CONTRIBUTEUR: 'Contributeur' };
 
   return (
     <div>
@@ -896,14 +897,138 @@ function AdminUniteLocale() {
   );
 }
 
+// ─── Section Unités Locales (SUPER_ADMIN) ────────────────────────────────────
+
+function AdminUnitesLocales() {
+  const [uls, setUls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const fetchUls = useCallback(async () => {
+    setLoading(true);
+    try { const { data } = await apiClient.get('/unite-locale'); setUls(Array.isArray(data) ? data : [data]); }
+    catch { setUls([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchUls(); }, [fetchUls]);
+
+  const handleSave = async (form) => {
+    setSaving(true);
+    try {
+      if (modal.data) {
+        await apiClient.put(`/unite-locale/${modal.data.id}`, form);
+      } else {
+        await apiClient.post('/unite-locale', form);
+      }
+      await fetchUls();
+      showToast(modal.data ? 'UL modifiee' : 'UL creee');
+      setModal(null);
+    } catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (ul) => {
+    if (!confirm(`Supprimer l'unite locale "${ul.nom}" et TOUTES ses donnees ? Cette action est irreversible.`)) return;
+    try { await apiClient.delete(`/unite-locale/${ul.id}`); await fetchUls(); showToast('Unite locale supprimee'); }
+    catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-end mb-4">
+        <button className="btn-primary flex items-center gap-2" onClick={() => setModal({ type: 'ul' })}>
+          <IconPlus size={16} /> Nouvelle unite locale
+        </button>
+      </div>
+      {loading ? (
+        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement...</p></div>
+      ) : uls.length === 0 ? (
+        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Aucune unite locale.</p></div>
+      ) : (
+        <div className="space-y-3">
+          {uls.map(ul => (
+            <div key={ul.id} className="card p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-crf-texte">{ul.nom}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {[ul.adresse, ul.telephone, ul.email].filter(Boolean).join(' | ') || 'Aucune info'}
+                </p>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button className="btn-icon p-1.5" onClick={() => setModal({ type: 'ul', data: ul })}><IconEdit size={14} /></button>
+                <button className="btn-icon p-1.5 hover:text-red-500" onClick={() => handleDelete(ul)}><IconTrash size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal?.type === 'ul' && (
+        <ULModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />
+      )}
+      {toast && (
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ULModal({ initial, onSave, onClose, loading }) {
+  const [form, setForm] = useState({
+    nom: initial?.nom || '',
+    telephone: initial?.telephone || '',
+    email: initial?.email || '',
+    adresse: initial?.adresse || '',
+  });
+
+  return (
+    <Modal title={initial ? 'Modifier l\'unite locale' : 'Nouvelle unite locale'} onClose={onClose}>
+      <div>
+        <label className="label">Nom *</label>
+        <input className="input" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
+      </div>
+      <div>
+        <label className="label">Telephone</label>
+        <input className="input" type="tel" value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
+      </div>
+      <div>
+        <label className="label">Email</label>
+        <input className="input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+      </div>
+      <div>
+        <label className="label">Adresse</label>
+        <input className="input" value={form.adresse} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} />
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        <button className="btn-primary" disabled={!form.nom.trim() || loading} onClick={() => onSave(form)}>
+          {loading ? 'Enregistrement...' : 'Enregistrer'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Navigation Admin ─────────────────────────────────────────────────────────
 
 function AdminNav() {
+  const { isSuperAdmin } = useAuth();
+
   const links = [
     { to: '/admin/articles',       label: 'Articles' },
     { to: '/admin/utilisateurs',  label: 'Utilisateurs' },
     { to: '/admin/planification', label: 'Planification' },
-    { to: '/admin/unite-locale',  label: 'Unité locale' },
+    ...(isSuperAdmin ? [{ to: '/admin/unites-locales', label: 'Unites locales' }] : []),
+    ...(isSuperAdmin ? [{ to: '/admin/unite-locale',  label: 'Modifier UL' }] : []),
     { to: '/admin/logs',          label: 'Logs' },
   ];
   return (
@@ -922,20 +1047,21 @@ function AdminNav() {
 export default function Admin() {
   return (
     <div>
-      <PageHeader title="Administration" subtitle="Gestion complète du catalogue et des utilisateurs" />
+      <PageHeader title="Administration" subtitle="Gestion complete du catalogue et des utilisateurs" />
       <AdminNav />
       <Routes>
         <Route index element={
           <div className="card text-center py-12 text-gray-400">
-            <p className="text-3xl mb-2">⚙️</p>
-            <p className="text-sm">Sélectionnez une section dans le menu.</p>
+            <p className="text-3xl mb-2">&#9881;&#65039;</p>
+            <p className="text-sm">Selectionnez une section dans le menu.</p>
           </div>
         } />
-        <Route path="articles"       element={<AdminArticles />} />
-        <Route path="utilisateurs"  element={<AdminUtilisateurs />} />
-        <Route path="planification" element={<AdminPlanification />} />
-        <Route path="unite-locale"  element={<AdminUniteLocale />} />
-        <Route path="logs"          element={<AdminLogs />} />
+        <Route path="articles"        element={<AdminArticles />} />
+        <Route path="utilisateurs"   element={<AdminUtilisateurs />} />
+        <Route path="planification"  element={<AdminPlanification />} />
+        <Route path="unites-locales" element={<AdminUnitesLocales />} />
+        <Route path="unite-locale"   element={<AdminUniteLocale />} />
+        <Route path="logs"           element={<AdminLogs />} />
       </Routes>
     </div>
   );

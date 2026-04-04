@@ -4,6 +4,8 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 
+const { getUlFilter } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -17,7 +19,7 @@ router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json({ articles: [], lots: [], uniformes: [] });
 
-  const ulId = req.user.unite_locale_id;
+  const ulFilter = getUlFilter(req);
   const contains = (val) => ({ contains: val, mode: 'insensitive' });
 
   try {
@@ -26,7 +28,7 @@ router.get('/', async (req, res) => {
       // ── Articles (nom + catégorie) ──────────────────────────────────────────
       prisma.article.findMany({
         where: {
-          unite_locale_id: ulId,
+          ...ulFilter,
           OR: [{ nom: contains(q) }, { categorie: contains(q) }],
         },
         select: { id: true, nom: true, categorie: true },
@@ -36,7 +38,7 @@ router.get('/', async (req, res) => {
       // ── Lots (nom) ─────────────────────────────────────────────────────────
       prisma.lot.findMany({
         where: {
-          unite_locale_id: ulId,
+          ...ulFilter,
           nom: contains(q),
         },
         select: { id: true, nom: true },
@@ -46,7 +48,7 @@ router.get('/', async (req, res) => {
       // ── Uniformes (type ou bénéficiaire actuel) ────────────────────────────
       prisma.uniforme.findMany({
         where: {
-          unite_locale_id: ulId,
+          ...ulFilter,
           OR: [
             { nom: contains(q) },
             {

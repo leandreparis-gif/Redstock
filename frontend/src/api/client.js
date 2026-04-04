@@ -6,13 +6,32 @@ const apiClient = axios.create({
   timeout: 15000,
 });
 
-// ── Requête : injecte le JWT ──────────────────────────────────────────────────
+// ── Requête : injecte le JWT + unite_locale_id pour super admin ──────────────
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('pharma_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Super admin : injecter automatiquement unite_locale_id dans les requêtes
+    try {
+      const stored = localStorage.getItem('pharma_user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        if (user.role === 'SUPER_ADMIN') {
+          const selectedUL = localStorage.getItem('pharma_selected_ul');
+          if (selectedUL) {
+            config.params = config.params || {};
+            // Ne pas écraser si déjà fourni
+            if (!config.params.unite_locale_id) {
+              config.params.unite_locale_id = selectedUL;
+            }
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
     return config;
   },
   (error) => Promise.reject(error)

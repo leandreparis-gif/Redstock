@@ -16,7 +16,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ open, onClose, alertesCount = 0 }) {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
   const totalAlertes = alertesCount;
@@ -44,12 +44,19 @@ export default function Sidebar({ open, onClose, alertesCount = 0 }) {
         </div>
 
         {/* Unité locale */}
-        <div className="px-5 py-3 border-b border-gray-100">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Unité Locale</p>
-          <p className="text-xs font-semibold text-crf-texte mt-0.5 truncate">
-            {user?.unite_locale_nom || 'Versailles Grand Parc Ouest'}
-          </p>
-        </div>
+        {user?.unite_locale_nom ? (
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Unité Locale</p>
+            <p className="text-xs font-semibold text-crf-texte mt-0.5 truncate">
+              {user.unite_locale_nom}
+            </p>
+          </div>
+        ) : (
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-crf-rouge">Super Admin</p>
+            <p className="text-xs font-semibold text-gray-500 mt-0.5">Toutes les unites locales</p>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -94,7 +101,7 @@ export default function Sidebar({ open, onClose, alertesCount = 0 }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-crf-texte truncate">{user?.prenom}</p>
               <p className="text-xs text-gray-400 truncate">
-                {user?.qualification} · {user?.role === 'ADMIN' ? 'Admin' : 'Contributeur'}
+                {user?.qualification} · {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : user?.role === 'ADMIN' ? 'Admin' : 'Contributeur'}
               </p>
             </div>
           </div>

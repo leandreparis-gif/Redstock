@@ -5,6 +5,8 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { getUlFilter } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 /**
@@ -19,7 +21,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
 
   try {
     const where = {
-      unite_locale_id: req.user.unite_locale_id,
+      ...getUlFilter(req),
       ...(action ? { action } : {}),
     };
 

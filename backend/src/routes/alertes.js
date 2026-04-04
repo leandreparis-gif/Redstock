@@ -5,6 +5,8 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { getUlFilter } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -20,7 +22,7 @@ router.get('/', async (req, res) => {
   try {
     const alertes = await prisma.alerte.findMany({
       where: {
-        unite_locale_id: req.user.unite_locale_id,
+        ...getUlFilter(req),
         statut,
       },
       include: {
@@ -46,7 +48,7 @@ router.get('/', async (req, res) => {
 router.patch('/:id/resoudre', requireAdmin, async (req, res) => {
   try {
     const alerte = await prisma.alerte.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!alerte) return res.status(404).json({ error: 'Alerte introuvable' });
 
@@ -70,10 +72,10 @@ router.get('/count', async (req, res) => {
   try {
     const [peremption, stockBas] = await Promise.all([
       prisma.alerte.count({
-        where: { unite_locale_id: req.user.unite_locale_id, statut: 'ACTIVE', type: 'PEREMPTION' },
+        where: { ...getUlFilter(req), statut: 'ACTIVE', type: 'PEREMPTION' },
       }),
       prisma.alerte.count({
-        where: { unite_locale_id: req.user.unite_locale_id, statut: 'ACTIVE', type: 'STOCK_BAS' },
+        where: { ...getUlFilter(req), statut: 'ACTIVE', type: 'STOCK_BAS' },
       }),
     ]);
 

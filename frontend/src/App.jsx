@@ -14,6 +14,7 @@ const Admin       = React.lazy(() => import('./pages/Admin'));
 import Layout      from './components/Layout';
 import RequireAuth  from './components/RequireAuth';
 import RequireAdmin from './components/RequireAdmin';
+import { ULProvider } from './context/ULContext';
 
 function SuspenseFallback() {
   return (
@@ -26,6 +27,7 @@ function SuspenseFallback() {
 export default function App() {
   return (
     <AuthProvider>
+      <ULProvider>
       <Suspense fallback={<SuspenseFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -49,6 +51,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
+      </ULProvider>
     </AuthProvider>
   );
 }

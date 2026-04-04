@@ -5,6 +5,8 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -18,7 +20,7 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   try {
     const armoires = await prisma.armoire.findMany({
-      where: { unite_locale_id: req.user.unite_locale_id },
+      where: { ...getUlFilter(req) },
       include: {
         tiroirs: {
           include: {
@@ -50,7 +52,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
   try {
     const armoire = await prisma.armoire.create({
-      data: { nom, description: description || null, unite_locale_id: req.user.unite_locale_id },
+      data: { nom, description: description || null, unite_locale_id: getUlId(req) },
     });
     res.status(201).json(armoire);
   } catch (err) {
@@ -66,7 +68,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
   const { nom, description } = req.body;
   try {
     const existing = await prisma.armoire.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Armoire introuvable' });
 
@@ -90,7 +92,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const existing = await prisma.armoire.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Armoire introuvable' });
 
@@ -114,7 +116,7 @@ router.post('/:armoireId/tiroirs', requireAdmin, async (req, res) => {
 
   try {
     const armoire = await prisma.armoire.findFirst({
-      where: { id: req.params.armoireId, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.armoireId, ...getUlFilter(req) },
     });
     if (!armoire) return res.status(404).json({ error: 'Armoire introuvable' });
 
@@ -187,7 +189,7 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
       where: { id: req.params.tiroirId },
       include: { armoire: { select: { unite_locale_id: true } } },
     });
-    if (!tiroir || tiroir.armoire.unite_locale_id !== req.user.unite_locale_id) {
+    if (!tiroir || (req.user.role !== 'SUPER_ADMIN' && tiroir.armoire.unite_locale_id !== req.user.unite_locale_id)) {
       return res.status(404).json({ error: 'Tiroir introuvable' });
     }
 
@@ -205,7 +207,7 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
       create: {
         article_id: req.params.articleId,
         tiroir_id: req.params.tiroirId,
-        unite_locale_id: req.user.unite_locale_id,
+        unite_locale_id: tiroir.armoire.unite_locale_id,
         quantite_actuelle: quantite_actuelle ?? 0,
         lots: lots ?? [],
       },
@@ -227,7 +229,7 @@ router.delete('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, r
       where: { id: req.params.tiroirId },
       include: { armoire: { select: { unite_locale_id: true } } },
     });
-    if (!tiroir || tiroir.armoire.unite_locale_id !== req.user.unite_locale_id) {
+    if (!tiroir || (req.user.role !== 'SUPER_ADMIN' && tiroir.armoire.unite_locale_id !== req.user.unite_locale_id)) {
       return res.status(404).json({ error: 'Tiroir introuvable' });
     }
 

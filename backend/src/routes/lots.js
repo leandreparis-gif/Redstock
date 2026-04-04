@@ -6,6 +6,8 @@ const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 // ─── ROUTES PUBLIQUES (pas de JWT) ────────────────────────────────────────────
@@ -52,7 +54,7 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   try {
     const lots = await prisma.lot.findMany({
-      where: { unite_locale_id: req.user.unite_locale_id },
+      where: { ...getUlFilter(req) },
       include: {
         pochettes: {
           include: {
@@ -79,7 +81,7 @@ router.get('/', async (req, res) => {
 router.get('/:id/qrcode', async (req, res) => {
   try {
     const lot = await prisma.lot.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
 
@@ -109,7 +111,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
   try {
     const lot = await prisma.lot.create({
-      data: { nom, unite_locale_id: req.user.unite_locale_id },
+      data: { nom, unite_locale_id: getUlId(req) },
     });
     res.status(201).json(lot);
   } catch (err) {
@@ -125,7 +127,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
   const { nom, photo_url } = req.body;
   try {
     const existing = await prisma.lot.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Lot introuvable' });
 
@@ -149,7 +151,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const existing = await prisma.lot.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Lot introuvable' });
 
@@ -173,7 +175,7 @@ router.post('/:lotId/pochettes', requireAdmin, async (req, res) => {
 
   try {
     const lot = await prisma.lot.findFirst({
-      where: { id: req.params.lotId, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.lotId, ...getUlFilter(req) },
     });
     if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
 
@@ -242,7 +244,7 @@ router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, 
       where: { id: req.params.pochetteId },
       include: { lot: { select: { unite_locale_id: true } } },
     });
-    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+    if (!pochette || req.user.role !== 'SUPER_ADMIN' && pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
       return res.status(404).json({ error: 'Pochette introuvable' });
     }
 
@@ -261,7 +263,7 @@ router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, 
       create: {
         article_id: req.params.articleId,
         pochette_id: req.params.pochetteId,
-        unite_locale_id: req.user.unite_locale_id,
+        unite_locale_id: pochette.lot.unite_locale_id,
         quantite_actuelle: quantite_actuelle ?? 0,
         quantite_minimum: quantite_minimum ?? 0,
         lots: lots ?? [],
@@ -289,7 +291,7 @@ router.patch('/pochettes/:pochetteId/stock/:articleId/minimum', requireAdmin, as
       where: { id: req.params.pochetteId },
       include: { lot: { select: { unite_locale_id: true } } },
     });
-    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+    if (!pochette || req.user.role !== 'SUPER_ADMIN' && pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
       return res.status(404).json({ error: 'Pochette introuvable' });
     }
 
@@ -320,7 +322,7 @@ router.delete('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (re
       where: { id: req.params.pochetteId },
       include: { lot: { select: { unite_locale_id: true } } },
     });
-    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+    if (!pochette || req.user.role !== 'SUPER_ADMIN' && pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
       return res.status(404).json({ error: 'Pochette introuvable' });
     }
 

@@ -4,6 +4,8 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 
+const { getUlFilter } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -13,7 +15,7 @@ router.use(authMiddleware);
  * Endpoint agrégé pour le tableau de bord.
  */
 router.get('/stats', async (req, res) => {
-  const ulId = req.user.unite_locale_id;
+  const ulFilter = getUlFilter(req);
   const now = new Date();
 
   try {
@@ -28,19 +30,19 @@ router.get('/stats', async (req, res) => {
     ] = await Promise.all([
       // 1. Alertes actives
       prisma.alerte.findMany({
-        where: { unite_locale_id: ulId, statut: 'ACTIVE' },
+        where: { ...ulFilter, statut: 'ACTIVE' },
         include: { article: true },
         orderBy: { date_echeance: 'asc' },
       }),
       // 2. Tous les contrôles (pour tendance)
       prisma.controle.findMany({
-        where: { unite_locale_id: ulId },
+        where: { ...ulFilter },
         orderBy: { date_controle: 'desc' },
         take: 100,
       }),
       // 3. Stocks tiroirs
       prisma.stockTiroir.findMany({
-        where: { unite_locale_id: ulId },
+        where: { ...ulFilter },
         include: {
           article: true,
           tiroir: { include: { armoire: true } },
@@ -48,7 +50,7 @@ router.get('/stats', async (req, res) => {
       }),
       // 4. Stocks pochettes
       prisma.stockPochette.findMany({
-        where: { unite_locale_id: ulId },
+        where: { ...ulFilter },
         include: {
           article: true,
           pochette: { include: { lot: true } },
@@ -56,11 +58,11 @@ router.get('/stats', async (req, res) => {
       }),
       // 5. Articles
       prisma.article.findMany({
-        where: { unite_locale_id: ulId },
+        where: { ...ulFilter },
       }),
       // 6. Logs récents
       prisma.log.findMany({
-        where: { unite_locale_id: ulId },
+        where: { ...ulFilter },
         orderBy: { created_at: 'desc' },
         take: 8,
       }),

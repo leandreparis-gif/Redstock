@@ -53,8 +53,8 @@ model User {
   password_hash   String
   created_at      DateTime      @default(now())
 
-  unite_locale_id String
-  unite_locale    UniteLocale   @relation(fields: [unite_locale_id], references: [id])
+  unite_locale_id String?
+  unite_locale    UniteLocale?  @relation(fields: [unite_locale_id], references: [id])
 }
 
 enum Qualification {
@@ -65,6 +65,7 @@ enum Qualification {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   CONTRIBUTEUR
 }

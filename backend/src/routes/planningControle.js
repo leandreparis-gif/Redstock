@@ -6,6 +6,8 @@ const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 const logAction = require('../utils/logAction');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 router.use(authMiddleware, requireAdmin);
 
@@ -18,7 +20,7 @@ const UNITES_VALIDES = ['JOURS', 'SEMAINES', 'MOIS'];
 router.get('/', async (req, res) => {
   try {
     const plannings = await prisma.planningControle.findMany({
-      where: { unite_locale_id: req.user.unite_locale_id },
+      where: { ...getUlFilter(req) },
       orderBy: { created_at: 'desc' },
     });
     res.json(plannings);
@@ -55,12 +57,12 @@ router.post('/', async (req, res) => {
         periodicite_unite,
         destinataires,
         actif: actif ?? true,
-        unite_locale_id: req.user.unite_locale_id,
+        unite_locale_id: getUlId(req),
       },
     });
 
     logAction(prisma, {
-      uniteLocaleId: req.user.unite_locale_id,
+      uniteLocaleId: getUlId(req),
       action: 'PLANNING_CREATE',
       details: `Planning créé — ${type_cible} tous les ${periodicite_valeur} ${periodicite_unite.toLowerCase()}`,
       user: req.user,
@@ -91,7 +93,7 @@ router.put('/:id', async (req, res) => {
 
   try {
     const existing = await prisma.planningControle.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Planning introuvable' });
 
@@ -107,7 +109,7 @@ router.put('/:id', async (req, res) => {
     });
 
     logAction(prisma, {
-      uniteLocaleId: req.user.unite_locale_id,
+      uniteLocaleId: getUlId(req),
       action: 'PLANNING_UPDATE',
       details: `Planning modifié — ${planning.type_cible}`,
       user: req.user,
@@ -126,14 +128,14 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const existing = await prisma.planningControle.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Planning introuvable' });
 
     await prisma.planningControle.delete({ where: { id: req.params.id } });
 
     logAction(prisma, {
-      uniteLocaleId: req.user.unite_locale_id,
+      uniteLocaleId: getUlId(req),
       action: 'PLANNING_DELETE',
       details: `Planning supprimé — ${existing.type_cible}`,
       user: req.user,
@@ -152,7 +154,7 @@ router.delete('/:id', async (req, res) => {
 router.patch('/:id/toggle', async (req, res) => {
   try {
     const existing = await prisma.planningControle.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Planning introuvable' });
 

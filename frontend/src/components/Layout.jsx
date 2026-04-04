@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import BarcodeScannerModal from './BarcodeScannerModal';
 import BarcodeActionModal from './BarcodeActionModal';
+import ULSelector from './ULSelector';
 
 // ─── Barre de recherche globale ───────────────────────────────────────────────
 
@@ -307,6 +308,9 @@ export default function Layout() {
           <div className="flex-1 flex justify-center">
             <SearchBar />
           </div>
+
+          {/* Selecteur UL super admin */}
+          <ULSelector />
 
           {/* Bouton scanner */}
           <button

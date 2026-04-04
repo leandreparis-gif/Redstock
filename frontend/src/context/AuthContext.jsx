@@ -56,14 +56,16 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem('pharma_selected_ul');
     setUser(null);
   }, []);
 
-  const isAdmin        = user?.role === 'ADMIN';
+  const isSuperAdmin   = user?.role === 'SUPER_ADMIN';
+  const isAdmin        = user?.role === 'ADMIN' || isSuperAdmin;
   const isContributeur = user?.role === 'CONTRIBUTEUR';
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAdmin, isContributeur }}>
+    <AuthContext.Provider value={{ user, login, logout, isSuperAdmin, isAdmin, isContributeur }}>
       {children}
     </AuthContext.Provider>
   );

@@ -6,6 +6,8 @@ const authMiddleware = require('../middleware/auth');
 
 const logAction = require('../utils/logAction');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 /**
@@ -94,7 +96,7 @@ router.get('/', async (req, res) => {
 
   try {
     const where = {
-      unite_locale_id: req.user.unite_locale_id,
+      ...getUlFilter(req),
       ...(type && { type }),
     };
 
@@ -122,7 +124,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const where = { unite_locale_id: req.user.unite_locale_id };
+    const where = { ...getUlFilter(req) };
 
     const [total, conforme, nonConforme, partiel] = await Promise.all([
       prisma.controle.count({ where }),
@@ -146,7 +148,7 @@ router.get('/stats', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const controle = await prisma.controle.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!controle) return res.status(404).json({ error: 'Contrôle introuvable' });
     res.json(controle);
@@ -203,7 +205,7 @@ router.post('/', async (req, res) => {
         statut,
         remarques: remarques || null,
         signature_data,
-        unite_locale_id: req.user.unite_locale_id,
+        unite_locale_id: getUlId(req),
       },
     });
 
@@ -217,8 +219,8 @@ router.post('/', async (req, res) => {
       ));
     }
 
-    logAction(prisma, {
-      uniteLocaleId: req.user.unite_locale_id,
+    if (getUlId(req)) logAction(prisma, {
+      uniteLocaleId: getUlId(req),
       action: 'CONTROLE',
       details: `Contrôle ${type} — ${statut} — par ${controleur_prenom}`,
       user: req.user,

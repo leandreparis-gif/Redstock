@@ -7,6 +7,8 @@ const { requireAdmin } = require('../middleware/role');
 
 const { notifPretUniforme, notifRetourUniforme } = require('../services/mailService');
 
+const { getUlFilter, getUlId } = require('../utils/resolveUL');
+
 const router = express.Router();
 
 
@@ -23,7 +25,7 @@ router.get('/', async (req, res) => {
   try {
     const uniformes = await prisma.uniforme.findMany({
       where: {
-        unite_locale_id: req.user.unite_locale_id,
+        ...getUlFilter(req),
         ...(statut && { statut }),
         ...(taille && { taille }),
       },
@@ -54,7 +56,7 @@ router.get('/en-cours', async (req, res) => {
       where: {
         date_retour_effective: null,
         type: { in: ['PRET', 'ATTRIBUTION'] },
-        uniforme: { unite_locale_id: req.user.unite_locale_id },
+        uniforme: { ...getUlFilter(req) },
       },
       include: {
         uniforme: true,
@@ -75,7 +77,7 @@ router.get('/en-cours', async (req, res) => {
 router.get('/:id/historique', async (req, res) => {
   try {
     const uniforme = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
 
@@ -110,7 +112,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
   try {
     const uniforme = await prisma.uniforme.create({
-      data: { nom, taille, etat, statut: 'DISPONIBLE', unite_locale_id: req.user.unite_locale_id },
+      data: { nom, taille, etat, statut: 'DISPONIBLE', unite_locale_id: getUlId(req) },
     });
     res.status(201).json(uniforme);
   } catch (err) {
@@ -127,7 +129,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
   const { nom, taille, etat } = req.body;
   try {
     const existing = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Uniforme introuvable' });
 
@@ -152,7 +154,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const existing = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!existing) return res.status(404).json({ error: 'Uniforme introuvable' });
 
@@ -180,7 +182,7 @@ router.post('/:id/pret', async (req, res) => {
 
   try {
     const uniforme = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
 
@@ -245,7 +247,7 @@ router.post('/:id/attribution', async (req, res) => {
 
   try {
     const uniforme = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
 
@@ -289,7 +291,7 @@ router.post('/:id/retour', async (req, res) => {
 
   try {
     const uniforme = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+      where: { id: req.params.id, ...getUlFilter(req) },
     });
     if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
 

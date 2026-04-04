@@ -574,13 +574,102 @@ function AdminLogs() {
   );
 }
 
+// ─── Section Unité Locale ────────────────────────────────────────────────────
+
+function AdminUniteLocale() {
+  const [ul, setUl] = useState(null);
+  const [form, setForm] = useState({ nom: '', telephone: '', email: '', adresse: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  useEffect(() => {
+    apiClient.get('/unite-locale')
+      .then(({ data }) => {
+        setUl(data);
+        setForm({
+          nom: data.nom || '',
+          telephone: data.telephone || '',
+          email: data.email || '',
+          adresse: data.adresse || '',
+        });
+      })
+      .catch(() => showToast('Erreur chargement', 'error'))
+      .finally(() => setLoading(false));
+  }, [showToast]);
+
+  const handleSave = async () => {
+    if (!form.nom.trim()) return;
+    setSaving(true);
+    try {
+      const { data } = await apiClient.put('/unite-locale', form);
+      setUl(data);
+      showToast('Informations mises à jour');
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Erreur', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
+  );
+
+  return (
+    <div>
+      <div className="card p-5 space-y-4 max-w-lg">
+        <p className="text-sm text-gray-500">
+          Ces informations sont affichées aux personnes qui scannent le QR code de vos lots.
+        </p>
+        <div>
+          <label className="label">Nom de l'unité locale *</label>
+          <input className="input" value={form.nom}
+            onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Téléphone</label>
+          <input className="input" type="tel" placeholder="ex : 01 39 50 12 34" value={form.telephone}
+            onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input className="input" type="email" placeholder="ex : contact@croix-rouge.fr" value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Adresse</label>
+          <input className="input" placeholder="ex : 12 rue de la Paroisse, 78000 Versailles" value={form.adresse}
+            onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} />
+        </div>
+        <div className="flex justify-end pt-2">
+          <button className="btn-primary" disabled={!form.nom.trim() || saving} onClick={handleSave}>
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Navigation Admin ─────────────────────────────────────────────────────────
 
 function AdminNav() {
   const links = [
-    { to: '/admin/articles',     label: 'Articles' },
-    { to: '/admin/utilisateurs', label: 'Utilisateurs' },
-    { to: '/admin/logs',         label: '📋 Logs' },
+    { to: '/admin/articles',      label: 'Articles' },
+    { to: '/admin/utilisateurs',  label: 'Utilisateurs' },
+    { to: '/admin/unite-locale',  label: 'Unité locale' },
+    { to: '/admin/logs',          label: 'Logs' },
   ];
   return (
     <nav className="flex gap-1 mb-6 flex-wrap">
@@ -607,8 +696,9 @@ export default function Admin() {
             <p className="text-sm">Sélectionnez une section dans le menu.</p>
           </div>
         } />
-        <Route path="articles"     element={<AdminArticles />} />
+        <Route path="articles"      element={<AdminArticles />} />
         <Route path="utilisateurs" element={<AdminUtilisateurs />} />
+        <Route path="unite-locale" element={<AdminUniteLocale />} />
         <Route path="logs"         element={<AdminLogs />} />
       </Routes>
     </div>

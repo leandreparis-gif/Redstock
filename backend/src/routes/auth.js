@@ -113,4 +113,14 @@ router.get('/me', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/auth/logout
+ * Déconnexion (invalidation côté client).
+ */
+router.post('/logout', (req, res) => {
+  // Le token JWT est invalidé côté client (suppression localStorage).
+  // Pour une invalidation serveur, un token blacklist serait nécessaire.
+  res.json({ message: 'Déconnecté' });
+});
+
 module.exports = router;

@@ -58,6 +58,10 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Rôle invalide' });
   }
 
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Mot de passe trop court (min. 8 caractères)' });
+  }
+
   try {
     const existing = await prisma.user.findUnique({ where: { login } });
     if (existing) {
@@ -129,8 +133,8 @@ router.put('/:id', async (req, res) => {
  */
 router.patch('/:id/password', async (req, res) => {
   const { password } = req.body;
-  if (!password || password.length < 6) {
-    return res.status(400).json({ error: 'Mot de passe trop court (min. 6 caractères)' });
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Mot de passe trop court (min. 8 caractères)' });
   }
 
   try {

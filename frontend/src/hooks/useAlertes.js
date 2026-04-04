@@ -10,7 +10,8 @@ export function useAlertes() {
     try {
       const { data } = await apiClient.get('/alertes?statut=' + statut);
       setAlertes(data);
-    } catch {
+    } catch (err) {
+      console.error('[useAlertes]', err);
       setAlertes([]);
     } finally {
       setLoading(false);

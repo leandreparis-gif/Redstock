@@ -61,6 +61,7 @@ export default function ControleLot() {
 
   const [prenom, setPrenom] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     apiClient.get(`/lots/public/${token}`)
@@ -135,7 +136,7 @@ export default function ControleLot() {
       });
       setStep('done');
     } catch {
-      alert('Erreur lors de l\'enregistrement. Réessayez.');
+      setSubmitError('Erreur lors de l\'enregistrement. Réessayez.');
     } finally {
       setSubmitting(false);
     }
@@ -439,6 +440,12 @@ export default function ControleLot() {
             autoFocus
           />
         </div>
+
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700" role="alert">
+            {submitError}
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button

@@ -119,8 +119,8 @@ export default function Dashboard() {
     try {
       await resoudre(alerteId);
       await load();
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('[Dashboard] Résolution alerte:', err);
     } finally {
       setResolving(null);
     }
@@ -131,7 +131,7 @@ export default function Dashboard() {
     try {
       const { data: d } = await apiClient.get('/dashboard/stats');
       setData(d);
-    } catch { setData(null); }
+    } catch (err) { console.error('[Dashboard]', err); setData(null); }
     finally { setLoading(false); }
   }, []);
 

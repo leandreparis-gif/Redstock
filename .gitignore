@@ -5,3 +5,4 @@ dist/
 .vercel/
 backend/prisma/dev.db
 *.log
+.vercel

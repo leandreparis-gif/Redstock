@@ -21,8 +21,26 @@ router.post('/public', async (req, res) => {
   }
 
   try {
-    const lot = await prisma.lot.findUnique({ where: { qr_code_token: lot_token } });
+    const lot = await prisma.lot.findUnique({
+      where: { qr_code_token: lot_token },
+      include: { pochettes: { include: { stocks: { select: { id: true } } } } },
+    });
     if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
+
+    // Validate statut
+    if (!['CONFORME', 'NON_CONFORME', 'PARTIEL'].includes(statut)) {
+      return res.status(400).json({ error: 'Statut invalide' });
+    }
+
+    // Validate all stock_ids belong to this lot's pochettes
+    const validStockIds = new Set(
+      lot.pochettes.flatMap(p => p.stocks.map(s => s.id))
+    );
+    for (const item of items) {
+      if (!validStockIds.has(item.stock_id)) {
+        return res.status(400).json({ error: `Stock ${item.stock_id} n'appartient pas à ce lot` });
+      }
+    }
 
     const dateISO = new Date().toISOString();
     const signature_data = `${controleur_prenom} — contrôle effectué le ${dateISO}`;

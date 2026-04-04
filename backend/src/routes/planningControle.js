@@ -79,6 +79,16 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { type_cible, periodicite_valeur, periodicite_unite, destinataires, actif } = req.body;
 
+  if (type_cible && !CIBLES_VALIDES.includes(type_cible)) {
+    return res.status(400).json({ error: 'Type cible invalide (LOT | TIROIR | ALL)' });
+  }
+  if (periodicite_unite && !UNITES_VALIDES.includes(periodicite_unite)) {
+    return res.status(400).json({ error: 'Unité de périodicité invalide' });
+  }
+  if (destinataires && (!Array.isArray(destinataires) || destinataires.length === 0)) {
+    return res.status(400).json({ error: 'Au moins un destinataire requis' });
+  }
+
   try {
     const existing = await prisma.planningControle.findFirst({
       where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
@@ -129,7 +139,7 @@ router.delete('/:id', async (req, res) => {
       user: req.user,
     });
 
-    res.json({ ok: true });
+    res.json({ message: 'Planning supprimé' });
   } catch (err) {
     console.error('[planning-controle/DELETE]', err);
     res.status(500).json({ error: 'Erreur serveur' });

@@ -182,6 +182,15 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
   const { quantite_actuelle, lots } = req.body;
 
   try {
+    // Verify tiroir belongs to user's UL
+    const tiroir = await prisma.tiroir.findFirst({
+      where: { id: req.params.tiroirId },
+      include: { armoire: { select: { unite_locale_id: true } } },
+    });
+    if (!tiroir || tiroir.armoire.unite_locale_id !== req.user.unite_locale_id) {
+      return res.status(404).json({ error: 'Tiroir introuvable' });
+    }
+
     const stock = await prisma.stockTiroir.upsert({
       where: {
         article_id_tiroir_id: {
@@ -213,6 +222,15 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
  */
 router.delete('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res) => {
   try {
+    // Verify tiroir belongs to user's UL
+    const tiroir = await prisma.tiroir.findFirst({
+      where: { id: req.params.tiroirId },
+      include: { armoire: { select: { unite_locale_id: true } } },
+    });
+    if (!tiroir || tiroir.armoire.unite_locale_id !== req.user.unite_locale_id) {
+      return res.status(404).json({ error: 'Tiroir introuvable' });
+    }
+
     await prisma.stockTiroir.delete({
       where: {
         article_id_tiroir_id: {

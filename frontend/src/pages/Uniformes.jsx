@@ -4,23 +4,7 @@ import { IconPlus, IconEdit, IconTrash } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
 import { useUniformes } from '../hooks/useUniformes';
 
-// ─── Modal générique ──────────────────────────────────────────────────────────
-
-function Modal({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-card shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-crf-texte">{title}</h2>
-          <button onClick={onClose} className="btn-icon text-lg leading-none">×</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
+import Modal from '../components/Modal';
 
 // ─── Modal Uniforme ──────────────────────────────────────────────────────────
 
@@ -41,7 +25,6 @@ const TYPES_UNIFORMES = [
 ];
 
 function UniformeModal({ initial, onSave, onClose, loading }) {
-  const typeInitial = TYPES_UNIFORMES.find(t => t.label === initial?.nom) || TYPES_UNIFORMES[0];
   const [form, setForm] = useState({
     nom: initial?.nom || TYPES_UNIFORMES[0].label,
     taille: initial?.taille || 'M',
@@ -187,7 +170,7 @@ function MouvementModal({ uniforme, type, onSave, onClose, loading }) {
           (type !== 'RETOUR' && (!form.beneficiaire_prenom || (type === 'PRET' && !form.date_retour_prevue))) || loading
         }
           onClick={() => onSave(form)}>
-          {loading ? 'Enregistrement…' : 'Confirmer le retour'}
+          {loading ? 'Enregistrement…' : type === 'PRET' ? 'Confirmer le prêt' : type === 'ATTRIBUTION' ? 'Confirmer l\'attribution' : 'Confirmer le retour'}
         </button>
       </div>
     </Modal>
@@ -492,7 +475,7 @@ export default function Uniformes() {
 
       {/* ── Toast ──────────────────────────────────────────────────── */}
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium
           ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>

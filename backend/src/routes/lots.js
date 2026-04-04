@@ -237,6 +237,15 @@ router.put('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, 
   const { quantite_actuelle, quantite_minimum, lots } = req.body;
 
   try {
+    // Verify pochette belongs to user's UL
+    const pochette = await prisma.pochette.findFirst({
+      where: { id: req.params.pochetteId },
+      include: { lot: { select: { unite_locale_id: true } } },
+    });
+    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+      return res.status(404).json({ error: 'Pochette introuvable' });
+    }
+
     const stock = await prisma.stockPochette.upsert({
       where: {
         article_id_pochette_id: {
@@ -275,6 +284,15 @@ router.patch('/pochettes/:pochetteId/stock/:articleId/minimum', requireAdmin, as
   if (quantite_minimum === undefined) return res.status(400).json({ error: 'quantite_minimum requis' });
 
   try {
+    // Verify pochette belongs to user's UL
+    const pochette = await prisma.pochette.findFirst({
+      where: { id: req.params.pochetteId },
+      include: { lot: { select: { unite_locale_id: true } } },
+    });
+    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+      return res.status(404).json({ error: 'Pochette introuvable' });
+    }
+
     const stock = await prisma.stockPochette.update({
       where: {
         article_id_pochette_id: {
@@ -297,6 +315,15 @@ router.patch('/pochettes/:pochetteId/stock/:articleId/minimum', requireAdmin, as
  */
 router.delete('/pochettes/:pochetteId/stock/:articleId', requireAdmin, async (req, res) => {
   try {
+    // Verify pochette belongs to user's UL
+    const pochette = await prisma.pochette.findFirst({
+      where: { id: req.params.pochetteId },
+      include: { lot: { select: { unite_locale_id: true } } },
+    });
+    if (!pochette || pochette.lot.unite_locale_id !== req.user.unite_locale_id) {
+      return res.status(404).json({ error: 'Pochette introuvable' });
+    }
+
     await prisma.stockPochette.delete({
       where: {
         article_id_pochette_id: {

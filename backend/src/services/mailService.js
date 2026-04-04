@@ -10,6 +10,16 @@ const resend = process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'dev
 
 const MAIL_FROM = process.env.MAIL_FROM || 'pharmasecours@croix-rouge.fr';
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function send({ to, subject, html }) {
   if (!resend) {
     console.log('[mailService] (dev) Email non envoyé — RESEND_API_KEY non configurée');
@@ -39,8 +49,8 @@ async function alertePeremption({ articleNom, datePeremption, localisation, dest
         <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
-        <p>L'article <strong>${articleNom}</strong> expire le <strong>${dateFormatee}</strong>.</p>
-        <p>Localisation : ${localisation}</p>
+        <p>L'article <strong>${escapeHtml(articleNom)}</strong> expire le <strong>${dateFormatee}</strong>.</p>
+        <p>Localisation : ${escapeHtml(localisation)}</p>
         <p style="color:#6b7280;font-size:14px">Pensez à remplacer cet article dès que possible.</p>
       </div>
     </div>`,
@@ -57,9 +67,9 @@ async function alerteStockBas({ articleNom, quantiteActuelle, quantiteMin, local
         <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
-        <p>L'article <strong>${articleNom}</strong> est en stock insuffisant.</p>
+        <p>L'article <strong>${escapeHtml(articleNom)}</strong> est en stock insuffisant.</p>
         <p>Quantité actuelle : <strong>${quantiteActuelle}</strong> (minimum requis : ${quantiteMin})</p>
-        <p>Localisation : ${localisation}</p>
+        <p>Localisation : ${escapeHtml(localisation)}</p>
       </div>
     </div>`,
   });
@@ -80,8 +90,8 @@ async function notifPretUniforme({ uniformeNom, taille, beneficiaire, qualificat
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Un uniforme a été <strong>prêté</strong> :</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
-          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire} (${qualification})</td></tr>
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${escapeHtml(uniformeNom)} — ${escapeHtml(taille)}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${escapeHtml(beneficiaire)} (${escapeHtml(qualification)})</td></tr>
           <tr><td style="padding:8px;color:#6b7280">Retour prévu le</td><td style="padding:8px;font-weight:600">${dateFormatee}</td></tr>
         </table>
       </div>
@@ -102,9 +112,9 @@ async function notifRetourUniforme({ uniformeNom, taille, beneficiaire, enRetard
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Un uniforme a été <strong>retourné</strong>${retardTag} :</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
-          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire}</td></tr>
-          ${remarques ? `<tr><td style="padding:8px;color:#6b7280">Remarques</td><td style="padding:8px">${remarques}</td></tr>` : ''}
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${escapeHtml(uniformeNom)} — ${escapeHtml(taille)}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${escapeHtml(beneficiaire)}</td></tr>
+          ${remarques ? `<tr><td style="padding:8px;color:#6b7280">Remarques</td><td style="padding:8px">${escapeHtml(remarques)}</td></tr>` : ''}
         </table>
       </div>
     </div>`,
@@ -124,8 +134,8 @@ async function notifRetardUniforme({ uniformeNom, taille, beneficiaire, qualific
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p style="color:#E30613;font-weight:600;font-size:16px">Un uniforme n'a pas été rendu à la date prévue.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${uniformeNom} — ${taille}</td></tr>
-          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${beneficiaire} (${qualification})</td></tr>
+          <tr><td style="padding:8px;color:#6b7280">Uniforme</td><td style="padding:8px;font-weight:600">${escapeHtml(uniformeNom)} — ${escapeHtml(taille)}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Bénéficiaire</td><td style="padding:8px;font-weight:600">${escapeHtml(beneficiaire)} (${escapeHtml(qualification)})</td></tr>
           <tr><td style="padding:8px;color:#6b7280">Retour prévu le</td><td style="padding:8px;font-weight:600;color:#E30613">${dateFormatee}</td></tr>
           <tr style="background:#f9fafb"><td style="padding:8px;color:#6b7280">Retard</td><td style="padding:8px;font-weight:700;color:#E30613">${joursRetard} jour${joursRetard > 1 ? 's' : ''}</td></tr>
         </table>
@@ -147,7 +157,7 @@ async function rappelControle({ uniteLocaleNom, items, destinataires }) {
       ? new Date(item.dernierControle).toLocaleDateString('fr-FR')
       : '<span style="color:#E30613;font-weight:600">Jamais</span>';
     return `<tr style="${bg}">
-      <td style="padding:8px;font-weight:600">${item.nom}</td>
+      <td style="padding:8px;font-weight:600">${escapeHtml(item.nom)}</td>
       <td style="padding:8px;text-align:center">${typeBadge}</td>
       <td style="padding:8px;text-align:center">${dernier}</td>
     </tr>`;
@@ -159,7 +169,7 @@ async function rappelControle({ uniteLocaleNom, items, destinataires }) {
     html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Rappel de contrôle</h2>
-        <p style="margin:4px 0 0">PharmaSecours — ${uniteLocaleNom}</p>
+        <p style="margin:4px 0 0">PharmaSecours — ${escapeHtml(uniteLocaleNom)}</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Les éléments suivants n'ont pas été contrôlés dans les délais prévus :</p>

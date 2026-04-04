@@ -45,28 +45,6 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/uniformes/:id/historique
- * Historique complet des mouvements d'un uniforme.
- */
-router.get('/:id/historique', async (req, res) => {
-  try {
-    const uniforme = await prisma.uniforme.findFirst({
-      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
-    });
-    if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
-
-    const mouvements = await prisma.mouvementUniforme.findMany({
-      where: { uniforme_id: req.params.id },
-      orderBy: { date_mouvement: 'desc' },
-    });
-    res.json({ uniforme, mouvements });
-  } catch (err) {
-    console.error('[uniformes/historique]', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-/**
  * GET /api/uniformes/en-cours
  * Tous les prêts/attributions en cours (sans retour).
  */
@@ -86,6 +64,28 @@ router.get('/en-cours', async (req, res) => {
     res.json(mouvements);
   } catch (err) {
     console.error('[uniformes/en-cours]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/uniformes/:id/historique
+ * Historique complet des mouvements d'un uniforme.
+ */
+router.get('/:id/historique', async (req, res) => {
+  try {
+    const uniforme = await prisma.uniforme.findFirst({
+      where: { id: req.params.id, unite_locale_id: req.user.unite_locale_id },
+    });
+    if (!uniforme) return res.status(404).json({ error: 'Uniforme introuvable' });
+
+    const mouvements = await prisma.mouvementUniforme.findMany({
+      where: { uniforme_id: req.params.id },
+      orderBy: { date_mouvement: 'desc' },
+    });
+    res.json({ uniforme, mouvements });
+  } catch (err) {
+    console.error('[uniformes/historique]', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

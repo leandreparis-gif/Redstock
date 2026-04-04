@@ -48,7 +48,7 @@ function SearchBar() {
     const val = e.target.value;
     setQuery(val);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(val), 150);
+    debounceRef.current = setTimeout(() => search(val), 400);
   };
 
   const handleKeyDown = (e) => {
@@ -288,7 +288,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-crf-fond overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} alertesCount={totalAlertes} />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Topbar */}

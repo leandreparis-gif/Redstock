@@ -1,7 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useAlertes } from '../hooks/useAlertes';
 import LogoCRF from './LogoCRF';
 import {
   IconDashboard, IconArmoire, IconSac, IconUniforme,
@@ -16,12 +15,11 @@ const NAV_ITEMS = [
   { to: '/reporting', label: 'Reporting',          Icon: IconReporting },
 ];
 
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, onClose, alertesCount = 0 }) {
   const { user, logout, isAdmin } = useAuth();
-  const { countPeremption, countStockBas } = useAlertes();
   const navigate = useNavigate();
 
-  const totalAlertes = countPeremption + countStockBas;
+  const totalAlertes = alertesCount;
   const items = [
     ...NAV_ITEMS,
     ...(isAdmin ? [{ to: '/admin', label: 'Administration', Icon: IconAdmin }] : []),

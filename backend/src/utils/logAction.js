@@ -1,7 +1,5 @@
 'use strict';
 
-const { v4: uuidv4 } = require('uuid');
-
 /**
  * Enregistre une action dans le journal.
  * Ne lève jamais d'erreur — les logs ne doivent pas casser l'app.
@@ -13,7 +11,6 @@ async function logAction(prisma, { uniteLocaleId, action, details, user }) {
   try {
     await prisma.log.create({
       data: {
-        id: uuidv4(),
         action,
         details: details || null,
         user_prenom: user?.prenom || null,
@@ -21,8 +18,8 @@ async function logAction(prisma, { uniteLocaleId, action, details, user }) {
         unite_locale_id: uniteLocaleId,
       },
     });
-  } catch {
-    // silent — les logs ne doivent jamais bloquer une requête
+  } catch (err) {
+    console.warn('[logAction] Erreur journalisation:', err.message);
   }
 }
 

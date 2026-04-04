@@ -6,21 +6,7 @@ import apiClient from '../api/client';
 import { useArticles } from '../hooks/useArticles';
 import JsBarcode from 'jsbarcode';
 
-// ─── Modal générique ──────────────────────────────────────────────────────────
-
-function Modal({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-card shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-crf-texte">{title}</h2>
-          <button onClick={onClose} className="btn-icon text-lg leading-none">×</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">{children}</div>
-      </div>
-    </div>
-  );
-}
+import Modal from '../components/Modal';
 
 // ─── Section Articles ─────────────────────────────────────────────────────────
 
@@ -114,13 +100,15 @@ function BarcodeModal({ article, onClose }) {
     }
   }, [article.code_barre]);
 
+  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
   const handlePrint = () => {
     const svgEl = svgRef.current;
     if (!svgEl) return;
     const svgData = new XMLSerializer().serializeToString(svgEl);
     const win = window.open('', '_blank');
     win.document.write(`
-      <html><head><title>Code-barres — ${article.nom}</title>
+      <html><head><title>Code-barres — ${esc(article.nom)}</title>
       <style>
         body { font-family: Arial, sans-serif; text-align: center; padding: 30px; }
         h2 { font-size: 18px; margin-bottom: 4px; }
@@ -129,8 +117,8 @@ function BarcodeModal({ article, onClose }) {
         @media print { button { display: none; } }
       </style></head>
       <body>
-        <h2>${article.nom}</h2>
-        <p>${article.categorie}</p>
+        <h2>${esc(article.nom)}</h2>
+        <p>${esc(article.categorie)}</p>
         <div class="barcode">${svgData}</div>
         <p style="font-size:10px;color:#aaa;margin-top:12px">PharmaSecours — Croix-Rouge francaise</p>
         <br/><button onclick="window.print()">Imprimer</button>
@@ -265,7 +253,7 @@ function AdminArticles() {
       {modal?.type === 'article' && <ArticleModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />}
       {modal?.type === 'barcode' && <BarcodeModal article={modal.data} onClose={() => setModal(null)} />}
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>
       )}
@@ -431,7 +419,7 @@ function AdminUtilisateurs() {
       )}
       {modal?.type === 'user' && <UserModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />}
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>
       )}
@@ -812,7 +800,7 @@ function AdminPlanification() {
         <PlanificationModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />
       )}
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>
       )}
@@ -900,7 +888,7 @@ function AdminUniteLocale() {
         </div>
       </div>
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>
       )}

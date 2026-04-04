@@ -367,10 +367,13 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock,
 
   return (
     <div className="border border-gray-100 rounded-md overflow-hidden">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(o => !o)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o); } }}
         className="w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5
-                   bg-white hover:bg-gray-50 transition-colors text-left"
+                   bg-white hover:bg-gray-50 transition-colors text-left cursor-pointer"
       >
         {/* Ligne nom */}
         <div className="flex items-center gap-2 w-full min-w-0">
@@ -401,7 +404,7 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock,
 
         {/* Count desktop */}
         <span className="hidden sm:block text-xs text-gray-500 flex-shrink-0">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 divide-y divide-gray-100">

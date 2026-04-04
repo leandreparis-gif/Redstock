@@ -259,8 +259,7 @@ function MinEditor({ article, isAdmin }) {
         />
       ) : (
         <button onClick={e => { e.stopPropagation(); setEditing(true); }}
-          className={`text-xs px-1.5 py-0.5 rounded font-medium ${saving ? 'opacity-50' : ''}
-            ${min === 0 ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}>
+          className={`text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 ${saving ? 'opacity-50' : ''}`}>
           {min}
         </button>
       )}
@@ -270,7 +269,9 @@ function MinEditor({ article, isAdmin }) {
 
 function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted }) {
   const { article, quantite_actuelle, lots } = stock;
-  const sousMin = quantite_actuelle < article.quantite_min;
+  const qMin = article.quantite_min || 0;
+  const sousMin = quantite_actuelle < qMin;
+  const procheMin = !sousMin && qMin > 0 && quantite_actuelle <= Math.max(qMin + 2, Math.ceil(qMin * 1.2));
   const pire    = pireStatutStock(lots, article.est_perimable);
   const urgent  = pire === 'perime' || pire === 'critique';
   const [open, setOpen] = useState(urgent || highlighted);
@@ -306,7 +307,7 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
         <div className="flex items-center gap-2 pl-6 sm:pl-0 flex-shrink-0"
              onClick={e => e.stopPropagation()}>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-            sousMin ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+            sousMin ? 'bg-red-100 text-red-700' : procheMin ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
           }`}>
             {quantite_actuelle}
           </span>

@@ -315,6 +315,7 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
   };
 
   const isBelowMin = stock.quantite_actuelle < min && min > 0;
+  const isNearMin = !isBelowMin && min > 0 && stock.quantite_actuelle <= Math.max(min + 2, Math.ceil(min * 1.2));
   const lots = stock.lots || [];
 
   return (
@@ -326,7 +327,9 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <PeremptionBadge lots={stock.lots} />
-          <span className="text-gray-800 font-semibold">×{stock.quantite_actuelle}</span>
+          <span className={`font-semibold ${
+            isBelowMin ? 'text-red-600' : isNearMin ? 'text-yellow-600' : 'text-gray-800'
+          }`}>×{stock.quantite_actuelle}</span>
           {isAdmin ? (
             <div className="flex items-center gap-1">
               <span className="text-gray-400 text-xs">min.</span>
@@ -339,9 +342,7 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
                 />
               ) : (
                 <button onClick={() => setEditing(true)}
-                  className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                    isBelowMin ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  } ${saving ? 'opacity-50' : ''}`}>
+                  className={`text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 ${saving ? 'opacity-50' : ''}`}>
                   {min}
                 </button>
               )}
@@ -350,7 +351,7 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
             </div>
           ) : (
             min > 0 && (
-              <span className={`text-xs ${isBelowMin ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+              <span className="text-xs text-gray-400">
                 min. {min}
               </span>
             )

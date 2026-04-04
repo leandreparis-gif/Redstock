@@ -131,4 +131,53 @@ async function notifRetardUniforme({ uniformeNom, taille, beneficiaire, qualific
   });
 }
 
-module.exports = { alertePeremption, alerteStockBas, notifPretUniforme, notifRetourUniforme, notifRetardUniforme };
+// ─── RAPPEL CONTRÔLE ─────────────────────────────────────────────────────────
+
+async function rappelControle({ uniteLocaleNom, items, destinataires }) {
+  const rows = items.map((item, i) => {
+    const bg = i % 2 === 1 ? 'background:#f9fafb' : '';
+    const typeBadge = item.type === 'LOT'
+      ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:12px">Lot</span>'
+      : '<span style="background:#ffedd5;color:#9a3412;padding:2px 8px;border-radius:12px;font-size:12px">Tiroir</span>';
+    const dernier = item.dernierControle
+      ? new Date(item.dernierControle).toLocaleDateString('fr-FR')
+      : '<span style="color:#E30613;font-weight:600">Jamais</span>';
+    return `<tr style="${bg}">
+      <td style="padding:8px;font-weight:600">${item.nom}</td>
+      <td style="padding:8px;text-align:center">${typeBadge}</td>
+      <td style="padding:8px;text-align:center">${dernier}</td>
+    </tr>`;
+  }).join('');
+
+  await send({
+    to: destinataires,
+    subject: `Rappel contrôle — ${items.length} élément${items.length > 1 ? 's' : ''} à contrôler`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Rappel de contrôle</h2>
+        <p style="margin:4px 0 0">PharmaSecours — ${uniteLocaleNom}</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p>Les éléments suivants n'ont pas été contrôlés dans les délais prévus :</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <thead>
+            <tr style="border-bottom:2px solid #e5e7eb">
+              <th style="padding:8px;text-align:left;color:#6b7280;font-size:13px">Élément</th>
+              <th style="padding:8px;text-align:center;color:#6b7280;font-size:13px">Type</th>
+              <th style="padding:8px;text-align:center;color:#6b7280;font-size:13px">Dernier contrôle</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="color:#6b7280;font-size:13px;margin-top:16px">
+          Merci de procéder aux contrôles dès que possible.
+        </p>
+        <p style="color:#9ca3af;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">
+          Cet email est généré automatiquement par PharmaSecours.
+        </p>
+      </div>
+    </div>`,
+  });
+}
+
+module.exports = { alertePeremption, alerteStockBas, notifPretUniforme, notifRetourUniforme, notifRetardUniforme, rappelControle };

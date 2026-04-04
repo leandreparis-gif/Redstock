@@ -27,6 +27,7 @@ model UniteLocale {
   stockTiroirs     StockTiroir[]
   stockPochettes   StockPochette[]
   logs             Log[]
+  planningsControle PlanningControle[]
 }
 
 // ─── JOURNAL D'ACTIVITÉ ───────────────────────────────────────────────────────
@@ -291,4 +292,32 @@ enum TypeMouvement {
   PRET
   ATTRIBUTION
   RETOUR
+}
+
+// ─── PLANNING CONTRÔLE ──────────────��────────────────────────────────────────
+model PlanningControle {
+  id                 String             @id @default(cuid())
+  type_cible         TypeCiblePlanning
+  periodicite_valeur Int
+  periodicite_unite  UnitePeriodicite
+  destinataires      Json               // tableau d'emails ["a@b.fr", ...]
+  actif              Boolean            @default(true)
+  dernier_rappel     DateTime?
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+}
+
+enum TypeCiblePlanning {
+  LOT
+  TIROIR
+  ALL
+}
+
+enum UnitePeriodicite {
+  JOURS
+  SEMAINES
+  MOIS
 }

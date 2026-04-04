@@ -5,7 +5,7 @@
  */
 const cron = require('node-cron');
 const prisma = require('../lib/prisma');
-const { alertePeremption, alerteStockBas, notifRetardUniforme } = require('./mailService');
+const { alertePeremption, alerteStockBas, notifRetardUniforme, rappelControle } = require('./mailService');
 const JOURS_ALERTE = 30; // alerter si péremption < 30 jours
 
 async function verifierAlertes() {
@@ -165,12 +165,127 @@ async function verifierRetardsUniformes() {
   }
 }
 
+// ─── RAPPELS CONTRÔLE PLANIFIÉS ──────────────────────────────────────────────
+
+function computeNextDue(dernier, valeur, unite) {
+  if (!dernier) return new Date(0); // immédiatement en retard
+  const d = new Date(dernier);
+  switch (unite) {
+    case 'JOURS':    d.setDate(d.getDate() + valeur); break;
+    case 'SEMAINES': d.setDate(d.getDate() + valeur * 7); break;
+    case 'MOIS':     d.setMonth(d.getMonth() + valeur); break;
+  }
+  return d;
+}
+
+async function verifierPlanningControles() {
+  console.log('[CRON] Vérification planning contrôles — démarrage à', new Date().toISOString());
+
+  try {
+    const plannings = await prisma.planningControle.findMany({
+      where: { actif: true },
+      include: { unite_locale: true },
+    });
+
+    if (!plannings.length) {
+      console.log('[CRON] Aucun planning actif');
+      return;
+    }
+
+    const maintenant = new Date();
+
+    for (const planning of plannings) {
+      // Vérifier si un rappel est dû
+      const nextRappelDue = computeNextDue(
+        planning.dernier_rappel,
+        planning.periodicite_valeur,
+        planning.periodicite_unite,
+      );
+      if (nextRappelDue > maintenant) continue;
+
+      const overdueItems = [];
+      const ulId = planning.unite_locale_id;
+
+      // Vérifier les tiroirs
+      if (planning.type_cible === 'TIROIR' || planning.type_cible === 'ALL') {
+        const armoires = await prisma.armoire.findMany({
+          where: { unite_locale_id: ulId },
+          include: { tiroirs: true },
+        });
+        for (const armoire of armoires) {
+          for (const tiroir of armoire.tiroirs) {
+            const dernierControle = await prisma.controle.findFirst({
+              where: { type: 'TIROIR', reference_id: tiroir.id, unite_locale_id: ulId },
+              orderBy: { date_controle: 'desc' },
+            });
+            const lastDate = dernierControle?.date_controle || null;
+            const nextDue = computeNextDue(lastDate, planning.periodicite_valeur, planning.periodicite_unite);
+            if (nextDue <= maintenant) {
+              overdueItems.push({
+                nom: `${armoire.nom} > ${tiroir.nom}`,
+                type: 'TIROIR',
+                dernierControle: lastDate,
+              });
+            }
+          }
+        }
+      }
+
+      // Vérifier les lots
+      if (planning.type_cible === 'LOT' || planning.type_cible === 'ALL') {
+        const lots = await prisma.lot.findMany({ where: { unite_locale_id: ulId } });
+        for (const lot of lots) {
+          const dernierControle = await prisma.controle.findFirst({
+            where: { type: 'LOT', reference_id: lot.id, unite_locale_id: ulId },
+            orderBy: { date_controle: 'desc' },
+          });
+          const lastDate = dernierControle?.date_controle || null;
+          const nextDue = computeNextDue(lastDate, planning.periodicite_valeur, planning.periodicite_unite);
+          if (nextDue <= maintenant) {
+            overdueItems.push({
+              nom: lot.nom,
+              type: 'LOT',
+              dernierControle: lastDate,
+            });
+          }
+        }
+      }
+
+      if (overdueItems.length === 0) continue;
+
+      try {
+        await rappelControle({
+          uniteLocaleNom: planning.unite_locale.nom,
+          items: overdueItems,
+          destinataires: planning.destinataires,
+        });
+        console.log(`[CRON] Rappel envoyé — ${overdueItems.length} élément(s) en retard — ${planning.destinataires.length} destinataire(s)`);
+      } catch (err) {
+        console.error('[CRON] Erreur envoi rappel contrôle:', err.message);
+      }
+
+      // Mettre à jour dernier_rappel
+      await prisma.planningControle.update({
+        where: { id: planning.id },
+        data: { dernier_rappel: maintenant },
+      });
+    }
+
+    console.log('[CRON] Vérification planning contrôles terminée');
+  } catch (err) {
+    console.error('[CRON] Erreur vérification planning contrôles:', err);
+  }
+}
+
 // Planifié pour tourner à 02:00 chaque nuit
 cron.schedule('0 2 * * *', verifierAlertes);
 
 // Retards uniformes à 08:00 chaque matin
 cron.schedule('0 8 * * *', verifierRetardsUniformes);
 
-console.log('[CRON] alerteService chargé — crons planifiés (alertes 02h00, retards uniformes 08h00)');
+// Rappels contrôle à 07:00 chaque matin
+cron.schedule('0 7 * * *', verifierPlanningControles);
 
-module.exports = { verifierAlertes, verifierRetardsUniformes };
+console.log('[CRON] alerteService chargé — crons planifiés (alertes 02h00, rappels contrôle 07h00, retards uniformes 08h00)');
+
+module.exports = { verifierAlertes, verifierRetardsUniformes, verifierPlanningControles };

@@ -14,6 +14,7 @@ const logsRoutes  = require('./routes/logs');
 const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const uniteLocaleRoutes = require('./routes/uniteLocale');
+const planningControleRoutes = require('./routes/planningControle');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +55,7 @@ app.use('/api/logs',  logsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/unite-locale', uniteLocaleRoutes);
+app.use('/api/planning-controle', planningControleRoutes);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

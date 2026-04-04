@@ -442,12 +442,15 @@ function AdminUtilisateurs() {
 // ─── Section Logs ─────────────────────────────────────────────────────────────
 
 const ACTION_LABELS = {
-  LOGIN:        { label: 'Connexion',      color: 'bg-blue-100 text-blue-700' },
-  CONTROLE:     { label: 'Contrôle',       color: 'bg-green-100 text-green-700' },
-  CONTROLE_QR:  { label: 'Contrôle QR',   color: 'bg-teal-100 text-teal-700' },
-  USER_CREATE:  { label: 'Compte créé',   color: 'bg-purple-100 text-purple-700' },
-  USER_DELETE:  { label: 'Compte supprimé', color: 'bg-red-100 text-red-700' },
-  STOCK_UPDATE: { label: 'Stock mis à jour', color: 'bg-orange-100 text-orange-700' },
+  LOGIN:           { label: 'Connexion',         color: 'bg-blue-100 text-blue-700' },
+  CONTROLE:        { label: 'Contrôle',          color: 'bg-green-100 text-green-700' },
+  CONTROLE_QR:     { label: 'Contrôle QR',      color: 'bg-teal-100 text-teal-700' },
+  USER_CREATE:     { label: 'Compte créé',      color: 'bg-purple-100 text-purple-700' },
+  USER_DELETE:     { label: 'Compte supprimé',  color: 'bg-red-100 text-red-700' },
+  STOCK_UPDATE:    { label: 'Stock mis à jour', color: 'bg-orange-100 text-orange-700' },
+  PLANNING_CREATE: { label: 'Planning créé',    color: 'bg-indigo-100 text-indigo-700' },
+  PLANNING_UPDATE: { label: 'Planning modifié', color: 'bg-indigo-100 text-indigo-700' },
+  PLANNING_DELETE: { label: 'Planning supprimé', color: 'bg-red-100 text-red-700' },
 };
 
 function AdminLogs() {
@@ -574,6 +577,249 @@ function AdminLogs() {
   );
 }
 
+// ─── Section Planification ───────────────────────────────────────────────────
+
+const CIBLE_LABELS = { ALL: 'Tous', LOT: 'Lots', TIROIR: 'Tiroirs' };
+const CIBLE_COLORS = { ALL: 'bg-blue-100 text-blue-700', LOT: 'bg-green-100 text-green-700', TIROIR: 'bg-orange-100 text-orange-700' };
+const UNITE_LABELS = { JOURS: 'jour(s)', SEMAINES: 'semaine(s)', MOIS: 'mois' };
+
+function PlanificationModal({ initial, onSave, onClose, loading }) {
+  const [form, setForm] = useState({
+    type_cible: initial?.type_cible || 'ALL',
+    periodicite_valeur: initial?.periodicite_valeur || 3,
+    periodicite_unite: initial?.periodicite_unite || 'MOIS',
+    destinataires: initial?.destinataires || [],
+    actif: initial?.actif ?? true,
+  });
+  const [emailInput, setEmailInput] = useState('');
+
+  const addEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (form.destinataires.includes(email)) return;
+    setForm(f => ({ ...f, destinataires: [...f.destinataires, email] }));
+    setEmailInput('');
+  };
+
+  const removeEmail = (email) => {
+    setForm(f => ({ ...f, destinataires: f.destinataires.filter(e => e !== email) }));
+  };
+
+  return (
+    <Modal title={initial ? 'Modifier le planning' : 'Nouveau planning'} onClose={onClose}>
+      <div>
+        <label className="label">Type de contrôle</label>
+        <select className="select" value={form.type_cible}
+          onChange={e => setForm(f => ({ ...f, type_cible: e.target.value }))}>
+          <option value="ALL">Tous (lots + tiroirs)</option>
+          <option value="LOT">Lots uniquement</option>
+          <option value="TIROIR">Tiroirs uniquement</option>
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Tous les</label>
+          <input type="number" min="1" className="input" value={form.periodicite_valeur}
+            onChange={e => setForm(f => ({ ...f, periodicite_valeur: parseInt(e.target.value) || 1 }))} />
+        </div>
+        <div>
+          <label className="label">Unité</label>
+          <select className="select" value={form.periodicite_unite}
+            onChange={e => setForm(f => ({ ...f, periodicite_unite: e.target.value }))}>
+            <option value="JOURS">Jour(s)</option>
+            <option value="SEMAINES">Semaine(s)</option>
+            <option value="MOIS">Mois</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label">Destinataires des rappels *</label>
+        <div className="flex gap-2">
+          <input type="email" className="input flex-1" placeholder="email@exemple.fr" value={emailInput}
+            onChange={e => setEmailInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEmail(); } }} />
+          <button type="button" className="btn-secondary text-sm px-3" onClick={addEmail}>Ajouter</button>
+        </div>
+        {form.destinataires.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {form.destinataires.map(email => (
+              <span key={email} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                {email}
+                <button type="button" className="text-gray-400 hover:text-red-500 text-sm leading-none"
+                  onClick={() => removeEmail(email)}>&times;</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-end pb-1">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={form.actif}
+            onChange={e => setForm(f => ({ ...f, actif: e.target.checked }))} />
+          <span className="text-sm text-gray-700">Planning actif</span>
+        </label>
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        <button className="btn-primary"
+          disabled={form.destinataires.length === 0 || form.periodicite_valeur < 1 || loading}
+          onClick={() => onSave(form)}>
+          {loading ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function AdminPlanification() {
+  const [plannings, setPlannings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const fetchPlannings = useCallback(async () => {
+    setLoading(true);
+    try { const { data } = await apiClient.get('/planning-controle'); setPlannings(data); }
+    catch { setPlannings([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchPlannings(); }, [fetchPlannings]);
+
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const handleSave = async (form) => {
+    setSaving(true);
+    try {
+      if (modal.data) await apiClient.put(`/planning-controle/${modal.data.id}`, form);
+      else            await apiClient.post('/planning-controle', form);
+      await fetchPlannings();
+      showToast(modal.data ? 'Planning modifié' : 'Planning créé');
+      setModal(null);
+    } catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (p) => {
+    if (!confirm('Supprimer ce planning ?')) return;
+    try { await apiClient.delete(`/planning-controle/${p.id}`); await fetchPlannings(); showToast('Planning supprimé'); }
+    catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
+  };
+
+  const handleToggle = async (p) => {
+    try {
+      await apiClient.patch(`/planning-controle/${p.id}/toggle`);
+      await fetchPlannings();
+      showToast(p.actif ? 'Planning désactivé' : 'Planning activé');
+    } catch (e) { showToast(e.response?.data?.error || 'Erreur', 'error'); }
+  };
+
+  const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR') : 'Jamais';
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
+        <p className="text-sm text-gray-500">
+          Configurez la fréquence des contrôles et les destinataires des rappels par email.
+        </p>
+        <button className="btn-primary flex items-center gap-2" onClick={() => setModal({ type: 'planning' })}>
+          <IconPlus size={16} /> Nouveau planning
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
+      ) : plannings.length === 0 ? (
+        <div className="card text-center py-12 text-gray-400">
+          <p className="text-3xl mb-2">📅</p>
+          <p className="text-sm">Aucun planning configuré.</p>
+          <p className="text-xs mt-1">Créez un planning pour recevoir des rappels de contrôle automatiques.</p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile card view */}
+          <div className="sm:hidden card p-0 divide-y divide-gray-100">
+            {plannings.map(p => (
+              <div key={p.id} className={`p-3 ${!p.actif ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CIBLE_COLORS[p.type_cible]}`}>
+                        {CIBLE_LABELS[p.type_cible]}
+                      </span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.actif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {p.actif ? 'Actif' : 'Inactif'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-crf-texte">
+                      Tous les {p.periodicite_valeur} {UNITE_LABELS[p.periodicite_unite]}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {p.destinataires.length} destinataire{p.destinataires.length > 1 ? 's' : ''} · Dernier rappel : {fmt(p.dernier_rappel)}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0 mt-0.5">
+                    <button className="btn-icon p-1" onClick={() => handleToggle(p)} title={p.actif ? 'Désactiver' : 'Activer'}>
+                      {p.actif ? '⏸' : '▶'}
+                    </button>
+                    <button className="btn-icon p-1" onClick={() => setModal({ type: 'planning', data: p })}><IconEdit size={13} /></button>
+                    <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(p)}><IconTrash size={13} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto card p-0">
+            <table className="table-auto">
+              <thead><tr><th>Cible</th><th>Périodicité</th><th>Destinataires</th><th>Dernier rappel</th><th>Statut</th><th></th></tr></thead>
+              <tbody>
+                {plannings.map(p => (
+                  <tr key={p.id} className={!p.actif ? 'opacity-50' : ''}>
+                    <td>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CIBLE_COLORS[p.type_cible]}`}>
+                        {CIBLE_LABELS[p.type_cible]}
+                      </span>
+                    </td>
+                    <td className="font-medium text-sm">Tous les {p.periodicite_valeur} {UNITE_LABELS[p.periodicite_unite]}</td>
+                    <td className="text-sm text-gray-600">{p.destinataires.length} email{p.destinataires.length > 1 ? 's' : ''}</td>
+                    <td className="text-sm text-gray-500">{fmt(p.dernier_rappel)}</td>
+                    <td>
+                      <button onClick={() => handleToggle(p)}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer ${p.actif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {p.actif ? 'Actif' : 'Inactif'}
+                      </button>
+                    </td>
+                    <td className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <button className="btn-icon p-1" onClick={() => setModal({ type: 'planning', data: p })}><IconEdit size={13} /></button>
+                        <button className="btn-icon p-1 hover:text-red-500" onClick={() => handleDelete(p)}><IconTrash size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {modal?.type === 'planning' && (
+        <PlanificationModal initial={modal.data} onSave={handleSave} onClose={() => setModal(null)} loading={saving} />
+      )}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Section Unité Locale ────────────────────────────────────────────────────
 
 function AdminUniteLocale() {
@@ -666,8 +912,9 @@ function AdminUniteLocale() {
 
 function AdminNav() {
   const links = [
-    { to: '/admin/articles',      label: 'Articles' },
+    { to: '/admin/articles',       label: 'Articles' },
     { to: '/admin/utilisateurs',  label: 'Utilisateurs' },
+    { to: '/admin/planification', label: 'Planification' },
     { to: '/admin/unite-locale',  label: 'Unité locale' },
     { to: '/admin/logs',          label: 'Logs' },
   ];
@@ -696,10 +943,11 @@ export default function Admin() {
             <p className="text-sm">Sélectionnez une section dans le menu.</p>
           </div>
         } />
-        <Route path="articles"      element={<AdminArticles />} />
-        <Route path="utilisateurs" element={<AdminUtilisateurs />} />
-        <Route path="unite-locale" element={<AdminUniteLocale />} />
-        <Route path="logs"         element={<AdminLogs />} />
+        <Route path="articles"       element={<AdminArticles />} />
+        <Route path="utilisateurs"  element={<AdminUtilisateurs />} />
+        <Route path="planification" element={<AdminPlanification />} />
+        <Route path="unite-locale"  element={<AdminUniteLocale />} />
+        <Route path="logs"          element={<AdminLogs />} />
       </Routes>
     </div>
   );

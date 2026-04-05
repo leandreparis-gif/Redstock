@@ -229,8 +229,13 @@ function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, l
 
   const handleSave = () => {
     const lotsClean = lots
-      .filter(l => l.label.trim())
-      .map(l => ({ label: l.label.trim(), date_peremption: l.date_peremption || null, quantite: parseInt(l.quantite) || 0 }));
+      .map(l => ({
+        label: (l.label || '').trim(),
+        date_peremption: l.date_peremption || null,
+        quantite: parseInt(l.quantite) || 0,
+      }))
+      // Garder un lot dès qu'il a une info utile : réf, date ou quantité
+      .filter(l => l.label || l.date_peremption || l.quantite > 0);
     onSave({ articleId, quantite_actuelle: totalLots, lots: lotsClean });
   };
 
@@ -259,7 +264,7 @@ function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, l
             {lots.map((lot, i) => (
               <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-md p-2">
                 <div className="flex-1 space-y-1">
-                  <input className="input text-xs py-1" placeholder="Référence lot *"
+                  <input className="input text-xs py-1" placeholder="Référence lot (optionnel)"
                     value={lot.label} onChange={e => updateLot(i, 'label', e.target.value)} />
                   <div className="flex gap-2">
                     {article?.est_perimable && (
@@ -377,7 +382,9 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
                 }[statut] || 'text-gray-500';
                 return (
                   <tr key={i} className={`${rowBg} border-t border-gray-100 first:border-t-0`}>
-                    <td className="py-1 px-2 font-mono text-gray-600 truncate max-w-[180px]">{lot.label}</td>
+                    <td className="py-1 px-2 font-mono text-gray-600 truncate max-w-[180px]">
+                      {lot.label || <span className="italic text-gray-400">Lot {i + 1}</span>}
+                    </td>
                     <td className="py-1 px-2 text-gray-500 text-right w-12 whitespace-nowrap">×{lot.quantite}</td>
                     <td className={`py-1 px-2 text-right whitespace-nowrap w-24 ${dateColor}`}>
                       {lot.date_peremption

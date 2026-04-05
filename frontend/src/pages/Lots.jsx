@@ -8,6 +8,16 @@ import { useArticles } from '../hooks/useArticles';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function getLotPeremptionStatut(date_peremption) {
+  if (!date_peremption) return null;
+  const d = new Date(date_peremption);
+  const diff = (d - new Date()) / (1000 * 60 * 60 * 24);
+  if (diff < 0) return 'perime';
+  if (diff <= 7) return 'j7';
+  if (diff <= 30) return 'j30';
+  return null;
+}
+
 function getPeremptionStatut(lots) {
   if (!lots || lots.length === 0) return null;
   const now = new Date();
@@ -201,7 +211,12 @@ function QRCodeModal({ lot, onClose }) {
 function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, loading }) {
   const [articleId, setArticleId] = useState(initial?.article?.id || '');
   const [lots, setLots] = useState(
-    initial?.lots?.length ? initial.lots
+    initial?.lots?.length
+      ? initial.lots.map(l => ({
+          label: l.label || '',
+          date_peremption: l.date_peremption ? String(l.date_peremption).slice(0, 10) : '',
+          quantite: l.quantite ?? 0,
+        }))
       : [{ label: '', date_peremption: '', quantite: 1 }]
   );
 
@@ -249,7 +264,7 @@ function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, l
                   <div className="flex gap-2">
                     {article?.est_perimable && (
                       <input type="date" className="input text-xs py-1 flex-1"
-                        value={lot.date_peremption} onChange={e => updateLot(i, 'date_peremption', e.target.value)} />
+                        value={lot.date_peremption || ''} onChange={e => updateLot(i, 'date_peremption', e.target.value)} />
                     )}
                     <input type="number" min="0" className="input text-xs py-1 w-20"
                       placeholder="Qté" value={lot.quantite} onChange={e => updateLot(i, 'quantite', e.target.value)} />
@@ -345,16 +360,35 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
         </div>
       </div>
       {lots.length > 0 && (
-        <div className="mt-1 ml-1 space-y-0.5">
-          {lots.map((lot, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-              <span className="font-mono truncate max-w-[160px]">{lot.label}</span>
-              <span className="text-gray-400 flex-shrink-0">×{lot.quantite}</span>
-              {lot.date_peremption && (
-                <span className="text-gray-400 flex-shrink-0">exp. {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}</span>
-              )}
-            </div>
-          ))}
+        <div className="mt-1.5 ml-1 rounded-md overflow-hidden border border-gray-100">
+          <table className="w-full text-xs">
+            <tbody>
+              {lots.map((lot, i) => {
+                const statut = getLotPeremptionStatut(lot.date_peremption);
+                const rowBg = {
+                  perime: 'bg-red-50',
+                  j7: 'bg-orange-50',
+                  j30: 'bg-yellow-50',
+                }[statut] || 'bg-white';
+                const dateColor = {
+                  perime: 'text-red-600 font-medium',
+                  j7: 'text-orange-600 font-medium',
+                  j30: 'text-yellow-700',
+                }[statut] || 'text-gray-500';
+                return (
+                  <tr key={i} className={`${rowBg} border-t border-gray-100 first:border-t-0`}>
+                    <td className="py-1 px-2 font-mono text-gray-600 truncate max-w-[180px]">{lot.label}</td>
+                    <td className="py-1 px-2 text-gray-500 text-right w-12 whitespace-nowrap">×{lot.quantite}</td>
+                    <td className={`py-1 px-2 text-right whitespace-nowrap w-24 ${dateColor}`}>
+                      {lot.date_peremption
+                        ? new Date(lot.date_peremption).toLocaleDateString('fr-FR')
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -362,7 +396,7 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
 }
 
 function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock, onEditStock, onDeleteStock }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const stockCount = pochette.stocks?.length || 0;
 
   return (

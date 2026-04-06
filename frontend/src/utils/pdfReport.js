@@ -284,3 +284,173 @@ export function generateMainCourante({
   const dateSuffix = fmtDate(new Date()).replace(/\//g, '-');
   doc.save(`main_courante_${dateSuffix}.pdf`);
 }
+
+// ─── Export PDF du tableau de bord ──────────────────────────────────────────
+
+export function generateDashboardPDF({
+  kpis,               // { alertesActives, peremptions, stocksBas, tauxConformite, totalControles }
+  stockParCategorie,  // [{ categorie, total, minimum, pourcentage }]
+  alertes,            // [{ article, type, message }]
+  prochainsControles, // [{ nom, dernierControle, dernierStatut, prochainControle, enRetard }]
+}) {
+  const doc = new jsPDF();
+  let y = drawHeader(doc, 'Tableau de bord — Pharmacie', 'Croix-Rouge francaise — PharmaSecours');
+
+  // Date du rapport
+  doc.setFontSize(9);
+  doc.setTextColor(...GRIS_CLAIR);
+  doc.text(`Rapport genere le ${fmtDateTime(new Date())}`, 15, y);
+  y += 10;
+
+  // ── KPIs ────────────────────────────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...GRIS_TEXTE);
+  doc.text('Indicateurs cles', 15, y);
+  y += 6;
+
+  const kpiData = [
+    ['Alertes actives', String(kpis.alertesActives)],
+    ['Peremptions', String(kpis.peremptions)],
+    ['Stocks bas', String(kpis.stocksBas)],
+    ['Taux de conformite', `${kpis.tauxConformite} %`],
+    ['Controles (30 derniers jours)', String(kpis.totalControles)],
+  ];
+
+  doc.autoTable({
+    startY: y,
+    body: kpiData,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 60 },
+      1: { cellWidth: 40, halign: 'center' },
+    },
+    margin: { left: 15, right: 15 },
+    tableWidth: 100,
+  });
+
+  y = doc.lastAutoTable.finalY + 12;
+
+  // ── Stock par catégorie ──────────────────────────────────────────────────────
+  if (stockParCategorie && stockParCategorie.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...GRIS_TEXTE);
+    doc.text('Stock par categorie', 15, y);
+    y += 4;
+
+    const stockBody = stockParCategorie.map(cat => {
+      let statut = 'OK';
+      if (cat.pourcentage < 50) statut = 'Critique';
+      else if (cat.pourcentage < 100) statut = 'Attention';
+      return [cat.categorie, String(cat.total), String(cat.minimum), `${cat.pourcentage} %`, statut];
+    });
+
+    doc.autoTable({
+      startY: y,
+      head: [['Categorie', 'Stock actuel', 'Minimum', 'Taux', 'Statut']],
+      body: stockBody,
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: CRF_ROUGE, textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        1: { halign: 'center' },
+        2: { halign: 'center' },
+        3: { halign: 'center' },
+        4: { halign: 'center' },
+      },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 4) {
+          if (data.cell.raw === 'Critique') data.cell.styles.textColor = [220, 38, 38];
+          else if (data.cell.raw === 'Attention') data.cell.styles.textColor = [234, 179, 8];
+          else data.cell.styles.textColor = [22, 163, 74];
+        }
+      },
+      margin: { left: 15, right: 15 },
+    });
+
+    y = doc.lastAutoTable.finalY + 12;
+  }
+
+  // ── Alertes actives ──────────────────────────────────────────────────────────
+  if (alertes && alertes.length > 0) {
+    if (y > 230) { doc.addPage(); y = 20; }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...GRIS_TEXTE);
+    doc.text(`Alertes actives (${alertes.length})`, 15, y);
+    y += 4;
+
+    const typeLabel = { PEREMPTION: 'Peremption', STOCK_BAS: 'Stock bas' };
+    const alerteBody = alertes.map(a => [
+      a.article?.nom || 'Inconnu',
+      typeLabel[a.type] || a.type,
+      (a.message || '').substring(0, 80),
+    ]);
+
+    doc.autoTable({
+      startY: y,
+      head: [['Article', 'Type', 'Detail']],
+      body: alerteBody,
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: CRF_ROUGE, textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        1: { halign: 'center', cellWidth: 25 },
+      },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 1) {
+          if (data.cell.raw === 'Peremption') data.cell.styles.textColor = [220, 38, 38];
+          else data.cell.styles.textColor = [234, 179, 8];
+        }
+      },
+      margin: { left: 15, right: 15 },
+    });
+
+    y = doc.lastAutoTable.finalY + 12;
+  }
+
+  // ── Prochains contrôles ──────────────────────────────────────────────────────
+  if (prochainsControles && prochainsControles.length > 0) {
+    if (y > 230) { doc.addPage(); y = 20; }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...GRIS_TEXTE);
+    doc.text('Prochains controles planifies', 15, y);
+    y += 4;
+
+    const controleBody = prochainsControles.map(c => [
+      c.nom,
+      c.dernierControle ? fmtDate(c.dernierControle) : 'Jamais',
+      c.dernierStatut === 'CONFORME' ? 'Conforme' : c.dernierStatut === 'NON_CONFORME' ? 'Non conforme' : c.dernierStatut === 'PARTIEL' ? 'Partiel' : '—',
+      fmtDate(c.prochainControle),
+      c.enRetard ? 'En retard' : 'OK',
+    ]);
+
+    doc.autoTable({
+      startY: y,
+      head: [['Element', 'Dernier controle', 'Statut', 'Prochain prevu', 'Etat']],
+      body: controleBody,
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: CRF_ROUGE, textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        2: { halign: 'center' },
+        3: { halign: 'center' },
+        4: { halign: 'center' },
+      },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 4) {
+          if (data.cell.raw === 'En retard') data.cell.styles.textColor = [220, 38, 38];
+          else data.cell.styles.textColor = [22, 163, 74];
+        }
+      },
+      margin: { left: 15, right: 15 },
+    });
+  }
+
+  drawFooter(doc);
+
+  const dateSuffix = fmtDate(new Date()).replace(/\//g, '-');
+  doc.save(`dashboard_pharmacie_${dateSuffix}.pdf`);
+}

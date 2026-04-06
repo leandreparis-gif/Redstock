@@ -3,74 +3,141 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
-
 const { getUlFilter } = require('../utils/resolveUL');
 
 const router = express.Router();
-
 router.use(authMiddleware);
+
+// ── Cache en mémoire (TTL 30s) ──────────────────────────────────────────────
+const CACHE_TTL = 30_000;
+const cacheStore = new Map();
+
+function getCacheKey(req) {
+  const ulFilter = getUlFilter(req);
+  return `dashboard_${ulFilter.unite_locale_id || 'all'}`;
+}
+
+function getCache(key) {
+  const entry = cacheStore.get(key);
+  if (entry && Date.now() - entry.time < CACHE_TTL) return entry.data;
+  cacheStore.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cacheStore.set(key, { data, time: Date.now() });
+}
+
+// ── Calcul du prochain contrôle dû ──────────────────────────────────────────
+function computeNextDue(dernier, valeur, unite) {
+  if (!dernier) return new Date(0);
+  const d = new Date(dernier);
+  switch (unite) {
+    case 'JOURS':    d.setDate(d.getDate() + valeur); break;
+    case 'SEMAINES': d.setDate(d.getDate() + valeur * 7); break;
+    case 'MOIS':     d.setMonth(d.getMonth() + valeur); break;
+  }
+  return d;
+}
 
 /**
  * GET /api/dashboard/stats
- * Endpoint agrégé pour le tableau de bord.
+ * Données agrégées — pharmacie (armoires) uniquement.
+ * Query: ?limit=8&offset=0 (pour pagination activité récente)
  */
 router.get('/stats', async (req, res) => {
   const ulFilter = getUlFilter(req);
+  const logLimit = Math.min(parseInt(req.query.limit) || 8, 50);
+  const logOffset = Math.max(parseInt(req.query.offset) || 0, 0);
   const now = new Date();
 
+  // Cache (hors pagination)
+  const cacheKey = getCacheKey(req);
+  if (logOffset === 0) {
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+  }
+
   try {
-    // ── Requêtes en parallèle ──────────────────────────────────────────────
+    // Calcul de la date limite pour les contrôles (30 derniers jours)
+    const date30j = new Date(now);
+    date30j.setDate(date30j.getDate() - 30);
+
+    // ── Requêtes en parallèle (pharmacie uniquement) ──────────────────────
     const [
       alertesActives,
       controles,
       stocksTiroir,
-      stocksPochette,
       articles,
       logs,
+      totalLogs,
+      plannings,
     ] = await Promise.all([
-      // 1. Alertes actives
-      prisma.alerte.findMany({
+      // 1. Alertes actives (count seulement — le détail vient de useAlertes)
+      prisma.alerte.count({
         where: { ...ulFilter, statut: 'ACTIVE' },
-        include: { article: true },
-        orderBy: { date_echeance: 'asc' },
       }),
-      // 2. Tous les contrôles (pour tendance)
+      // 2. Contrôles des 30 derniers jours
       prisma.controle.findMany({
-        where: { ...ulFilter },
+        where: {
+          ...ulFilter,
+          type: 'TIROIR',
+          date_controle: { gte: date30j },
+        },
+        select: { date_controle: true, statut: true },
         orderBy: { date_controle: 'desc' },
-        take: 100,
       }),
-      // 3. Stocks tiroirs
+      // 3. Stocks tiroirs (pharmacie) — champs nécessaires seulement
       prisma.stockTiroir.findMany({
         where: { ...ulFilter },
-        include: {
-          article: true,
-          tiroir: { include: { armoire: true } },
+        select: {
+          quantite_actuelle: true,
+          lots: true,
+          article_id: true,
+          article: { select: { nom: true, categorie: true, est_perimable: true, quantite_min: true } },
+          tiroir: {
+            select: {
+              id: true,
+              nom: true,
+              armoire: { select: { nom: true } },
+            },
+          },
         },
       }),
-      // 4. Stocks pochettes
-      prisma.stockPochette.findMany({
-        where: { ...ulFilter },
-        include: {
-          article: true,
-          pochette: { include: { lot: true } },
-        },
-      }),
-      // 5. Articles
+      // 4. Articles (pour stock par catégorie — quantité min)
       prisma.article.findMany({
         where: { ...ulFilter },
+        select: { categorie: true, quantite_min: true },
       }),
-      // 6. Logs récents
+      // 5. Logs récents (avec pagination)
       prisma.log.findMany({
         where: { ...ulFilter },
         orderBy: { created_at: 'desc' },
-        take: 8,
+        take: logLimit,
+        skip: logOffset,
+        select: { action: true, details: true, user_prenom: true, user_login: true, created_at: true },
+      }),
+      // 6. Total logs (pour savoir s'il y a plus)
+      prisma.log.count({ where: { ...ulFilter } }),
+      // 7. Plannings contrôle actifs
+      prisma.planningControle.findMany({
+        where: { ...ulFilter, actif: true },
+        select: {
+          type_cible: true,
+          periodicite_valeur: true,
+          periodicite_unite: true,
+        },
       }),
     ]);
 
     // ── KPIs ────────────────────────────────────────────────────────────────
-    const countPeremption = alertesActives.filter(a => a.type === 'PEREMPTION').length;
-    const countStockBas = alertesActives.filter(a => a.type === 'STOCK_BAS').length;
+    // Compter péremptions et stocks bas depuis les alertes
+    const [countPeremption, countStockBas] = await Promise.all([
+      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'PEREMPTION' } }),
+      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'STOCK_BAS' } }),
+    ]);
 
     const totalControles = controles.length;
     const conforme = controles.filter(c => c.statut === 'CONFORME').length;
@@ -79,35 +146,21 @@ router.get('/stats', async (req, res) => {
       : 100;
 
     const kpis = {
-      alertesActives: alertesActives.length,
+      alertesActives,
       peremptions: countPeremption,
       stocksBas: countStockBas,
       tauxConformite,
       totalControles,
-      articlesTotal: articles.length,
     };
 
-    // ── Péremption timeline ─────────────────────────────────────────────────
+    // ── Péremption timeline (pharmacie uniquement) ──────────────────────────
     const allLots = [];
     for (const st of stocksTiroir) {
+      if (!st.article.est_perimable) continue;
       const lots = Array.isArray(st.lots) ? st.lots : [];
       for (const lot of lots) {
         if (lot.date_peremption) {
-          allLots.push({
-            date: new Date(lot.date_peremption),
-            articleNom: st.article.nom,
-          });
-        }
-      }
-    }
-    for (const sp of stocksPochette) {
-      const lots = Array.isArray(sp.lots) ? sp.lots : [];
-      for (const lot of lots) {
-        if (lot.date_peremption) {
-          allLots.push({
-            date: new Date(lot.date_peremption),
-            articleNom: sp.article.nom,
-          });
+          allLots.push({ date: new Date(lot.date_peremption) });
         }
       }
     }
@@ -125,7 +178,7 @@ router.get('/stats', async (req, res) => {
       { periode: '60-90j', count: futureLots.filter(l => l.date >= d60 && l.date < d90).length },
     ];
 
-    // ── Tendance conformité (par jour, 10 derniers jours avec contrôles) ───
+    // ── Tendance conformité (par jour, 10 derniers jours) ───────────────────
     const controlesByDay = {};
     for (const c of controles) {
       const day = c.date_controle.toISOString().slice(0, 10);
@@ -142,14 +195,7 @@ router.get('/stats', async (req, res) => {
         total: v.total,
       }));
 
-    // ── Articles critiques ──────────────────────────────────────────────────
-    const articlesCritiques = alertesActives.slice(0, 5).map(a => {
-      const info = { id: a.id, nom: a.article?.nom || 'Inconnu', type: a.type, message: a.message };
-      if (a.date_echeance) info.datePeremption = a.date_echeance;
-      return info;
-    });
-
-    // ── Stock par catégorie ─────────────────────────────────────────────────
+    // ── Stock par catégorie (pharmacie uniquement) ──────────────────────────
     const catMap = {};
     for (const art of articles) {
       if (!catMap[art.categorie]) catMap[art.categorie] = { total: 0, minimum: 0 };
@@ -160,17 +206,59 @@ router.get('/stats', async (req, res) => {
       if (!catMap[cat]) catMap[cat] = { total: 0, minimum: 0 };
       catMap[cat].total += st.quantite_actuelle;
     }
-    for (const sp of stocksPochette) {
-      const cat = sp.article.categorie;
-      if (!catMap[cat]) catMap[cat] = { total: 0, minimum: 0 };
-      catMap[cat].total += sp.quantite_actuelle;
-    }
     const stockParCategorie = Object.entries(catMap).map(([categorie, v]) => ({
       categorie,
       total: v.total,
       minimum: v.minimum,
       pourcentage: v.minimum > 0 ? Math.round((v.total / v.minimum) * 100) : 100,
     })).sort((a, b) => a.pourcentage - b.pourcentage);
+
+    // ── Prochains contrôles (tiroirs uniquement) ────────────────────────────
+    const prochainsControles = [];
+    const tiroirPlanning = plannings.find(p =>
+      p.type_cible === 'TIROIR' || p.type_cible === 'ALL'
+    );
+
+    if (tiroirPlanning) {
+      // Récupérer tous les tiroirs de l'UL
+      const armoires = await prisma.armoire.findMany({
+        where: { ...ulFilter },
+        select: {
+          nom: true,
+          tiroirs: { select: { id: true, nom: true } },
+        },
+      });
+
+      for (const armoire of armoires) {
+        for (const tiroir of armoire.tiroirs) {
+          const dernierControle = await prisma.controle.findFirst({
+            where: { type: 'TIROIR', reference_id: tiroir.id, ...ulFilter },
+            orderBy: { date_controle: 'desc' },
+            select: { date_controle: true, statut: true },
+          });
+
+          const nextDue = computeNextDue(
+            dernierControle?.date_controle || null,
+            tiroirPlanning.periodicite_valeur,
+            tiroirPlanning.periodicite_unite,
+          );
+
+          prochainsControles.push({
+            nom: `${armoire.nom} > ${tiroir.nom}`,
+            dernierControle: dernierControle?.date_controle || null,
+            dernierStatut: dernierControle?.statut || null,
+            prochainControle: nextDue.toISOString(),
+            enRetard: nextDue <= now,
+          });
+        }
+      }
+
+      // Trier : en retard d'abord, puis par date
+      prochainsControles.sort((a, b) => {
+        if (a.enRetard !== b.enRetard) return a.enRetard ? -1 : 1;
+        return new Date(a.prochainControle) - new Date(b.prochainControle);
+      });
+    }
 
     // ── Activité récente ────────────────────────────────────────────────────
     const activiteRecente = logs.map(l => ({
@@ -181,14 +269,19 @@ router.get('/stats', async (req, res) => {
     }));
 
     // ── Réponse ─────────────────────────────────────────────────────────────
-    res.json({
+    const result = {
       kpis,
       peremptionTimeline,
       controlesTendance,
-      articlesCritiques,
       stockParCategorie,
+      prochainsControles,
       activiteRecente,
-    });
+      activiteTotalCount: totalLogs,
+    };
+
+    if (logOffset === 0) setCache(cacheKey, result);
+
+    res.json(result);
   } catch (err) {
     console.error('Dashboard stats error:', err);
     res.status(500).json({ error: 'Erreur lors du chargement du tableau de bord' });

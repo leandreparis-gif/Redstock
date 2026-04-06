@@ -22,6 +22,9 @@ const planningControleRoutes = require('./routes/planningControle');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── TRUST PROXY (Railway, Render, etc.) ────────────────────────────────────
+app.set('trust proxy', 1);
+
 // ─── SECURITY HEADERS ───────────────────────────────────────────────────────
 app.use(helmet());
 

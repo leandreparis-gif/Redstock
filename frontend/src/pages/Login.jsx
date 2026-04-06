@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LogoCRF from '../components/LogoCRF';
 
@@ -198,7 +198,13 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-gray-400 mt-10">
+          <div className="text-center mt-6">
+            <Link to="/forgot-password" className="text-sm text-gray-500 hover:text-crf-rouge transition-colors">
+              Mot de passe oublié ?
+            </Link>
+          </div>
+
+          <p className="text-center text-xs text-gray-400 mt-8">
             RedStock · Croix-Rouge française
           </p>
         </div>

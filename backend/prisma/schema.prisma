@@ -53,6 +53,8 @@ model User {
   role            Role
   login           String        @unique
   password_hash   String
+  reset_token     String?
+  reset_token_expires DateTime?
   created_at      DateTime      @default(now())
 
   unite_locale_id String?

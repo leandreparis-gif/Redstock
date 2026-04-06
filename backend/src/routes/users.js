@@ -7,6 +7,7 @@ const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
 const logAction = require('../utils/logAction');
+const { bienvenueUtilisateur } = require('../services/mailService');
 
 const router = express.Router();
 
@@ -64,7 +65,7 @@ router.get('/', async (req, res) => {
  * Body : { prenom, qualification, role, login, password, unite_locale_id? }
  */
 router.post('/', async (req, res) => {
-  const { prenom, qualification, role, login, password } = req.body;
+  const { prenom, qualification, role, login, password, email } = req.body;
 
   if (!prenom || !qualification || !role || !login || !password) {
     return res.status(400).json({ error: 'Tous les champs sont requis' });
@@ -116,6 +117,7 @@ router.post('/', async (req, res) => {
         role,
         login,
         password_hash,
+        email: email?.trim() || null,
         unite_locale_id: targetUlId,
       },
       select: { id: true, prenom: true, qualification: true, role: true, login: true, created_at: true },
@@ -127,6 +129,13 @@ router.post('/', async (req, res) => {
         action: 'USER_CREATE',
         details: `Compte créé : ${prenom} (${login}) — rôle ${role}`,
         user: req.user,
+      });
+    }
+
+    // Envoyer email de bienvenue si l'email est renseigné
+    if (email) {
+      bienvenueUtilisateur({ to: email, prenom, login }).catch(err => {
+        console.error('[users/POST] Erreur envoi email bienvenue:', err.message);
       });
     }
 

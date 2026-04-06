@@ -10,7 +10,9 @@ const ControleLot = React.lazy(() => import('./pages/ControleLot'));
 const Uniformes   = React.lazy(() => import('./pages/Uniformes'));
 const Reporting   = React.lazy(() => import('./pages/Reporting'));
 const Admin       = React.lazy(() => import('./pages/Admin'));
-const Profil      = React.lazy(() => import('./pages/Profil'));
+const Profil          = React.lazy(() => import('./pages/Profil'));
+const ForgotPassword  = React.lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword   = React.lazy(() => import('./pages/ResetPassword'));
 
 import Layout      from './components/Layout';
 import RequireAuth  from './components/RequireAuth';
@@ -32,6 +34,8 @@ export default function App() {
       <Suspense fallback={<SuspenseFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/controle/lot/:token" element={<ControleLot />} />
 
           <Route element={<RequireAuth />}>

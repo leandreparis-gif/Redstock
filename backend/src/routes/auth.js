@@ -6,7 +6,9 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 
+const crypto = require('crypto');
 const logAction = require('../utils/logAction');
+const { resetPassword: sendResetEmail } = require('../services/mailService');
 
 const router = express.Router();
 
@@ -199,6 +201,88 @@ router.patch('/password', authMiddleware, async (req, res) => {
     res.json({ message: 'Mot de passe mis à jour' });
   } catch (err) {
     console.error('[auth/password]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Body : { email }
+ * Génère un token de reset, l'enregistre en DB, envoie l'email.
+ */
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email requis' });
+  }
+
+  try {
+    const user = await prisma.user.findFirst({ where: { email } });
+
+    // Toujours répondre 200 pour ne pas révéler si l'email existe
+    if (!user) {
+      return res.json({ message: 'Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 heure
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { reset_token: token, reset_token_expires: expires },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+
+    await sendResetEmail({ to: email, prenom: user.prenom, resetLink });
+
+    res.json({ message: 'Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.' });
+  } catch (err) {
+    console.error('[auth/forgot-password]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Body : { token, newPassword }
+ * Vérifie le token et met à jour le mot de passe.
+ */
+router.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token et nouveau mot de passe requis' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+  }
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        reset_token: token,
+        reset_token_expires: { gte: new Date() },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Lien invalide ou expiré. Veuillez refaire une demande.' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash, reset_token: null, reset_token_expires: null },
+    });
+
+    res.json({ message: 'Mot de passe réinitialisé avec succès' });
+  } catch (err) {
+    console.error('[auth/reset-password]', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

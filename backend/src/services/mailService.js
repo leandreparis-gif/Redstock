@@ -46,7 +46,7 @@ async function alertePeremption({ articleNom, datePeremption, localisation, dest
     html: `<div style="font-family:sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Alerte Péremption</h2>
-        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>L'article <strong>${escapeHtml(articleNom)}</strong> expire le <strong>${dateFormatee}</strong>.</p>
@@ -64,7 +64,7 @@ async function alerteStockBas({ articleNom, quantiteActuelle, quantiteMin, local
     html: `<div style="font-family:sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Alerte Stock bas</h2>
-        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>L'article <strong>${escapeHtml(articleNom)}</strong> est en stock insuffisant.</p>
@@ -85,7 +85,7 @@ async function notifPretUniforme({ uniformeNom, taille, beneficiaire, qualificat
     html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Prêt d'uniforme</h2>
-        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Un uniforme a été <strong>prêté</strong> :</p>
@@ -107,7 +107,7 @@ async function notifRetourUniforme({ uniformeNom, taille, beneficiaire, enRetard
     html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
       <div style="background:#16a34a;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Retour d'uniforme</h2>
-        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Un uniforme a été <strong>retourné</strong>${retardTag} :</p>
@@ -129,7 +129,7 @@ async function notifRetardUniforme({ uniformeNom, taille, beneficiaire, qualific
     html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Retard de retour d'uniforme</h2>
-        <p style="margin:4px 0 0">PharmaSecours — Croix-Rouge française</p>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p style="color:#E30613;font-weight:600;font-size:16px">Un uniforme n'a pas été rendu à la date prévue.</p>
@@ -169,7 +169,7 @@ async function rappelControle({ uniteLocaleNom, items, destinataires }) {
     html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
       <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
         <h2 style="margin:0">Rappel de contrôle</h2>
-        <p style="margin:4px 0 0">PharmaSecours — ${escapeHtml(uniteLocaleNom)}</p>
+        <p style="margin:4px 0 0">RedStock — ${escapeHtml(uniteLocaleNom)}</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
         <p>Les éléments suivants n'ont pas été contrôlés dans les délais prévus :</p>
@@ -187,11 +187,65 @@ async function rappelControle({ uniteLocaleNom, items, destinataires }) {
           Merci de procéder aux contrôles dès que possible.
         </p>
         <p style="color:#9ca3af;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">
-          Cet email est généré automatiquement par PharmaSecours.
+          Cet email est généré automatiquement par RedStock.
         </p>
       </div>
     </div>`,
   });
 }
 
-module.exports = { alertePeremption, alerteStockBas, notifPretUniforme, notifRetourUniforme, notifRetardUniforme, rappelControle };
+// ─── BIENVENUE ───────────────────────────────────────────────────────────────
+
+async function bienvenueUtilisateur({ to, prenom, login }) {
+  await send({
+    to,
+    subject: `Bienvenue sur RedStock, ${prenom} !`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Bienvenue sur RedStock</h2>
+        <p style="margin:4px 0 0">Croix-Rouge française</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p>Bonjour <strong>${escapeHtml(prenom)}</strong>,</p>
+        <p>Votre compte a été créé avec succès. Vous pouvez dès maintenant vous connecter à RedStock.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:8px;color:#6b7280">Identifiant</td><td style="padding:8px;font-weight:600">${escapeHtml(login)}</td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:14px">Votre mot de passe vous a été communiqué par votre administrateur. Pensez à le changer dès votre première connexion.</p>
+        <p style="color:#9ca3af;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">
+          Cet email est généré automatiquement par RedStock.
+        </p>
+      </div>
+    </div>`,
+  });
+}
+
+// ─── RÉINITIALISATION MOT DE PASSE ──────────────────────────────────────────
+
+async function resetPassword({ to, prenom, resetLink }) {
+  await send({
+    to,
+    subject: `Réinitialisation de votre mot de passe — RedStock`,
+    html: `<div style="font-family:Poppins,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#E30613;color:white;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0">Réinitialisation du mot de passe</h2>
+        <p style="margin:4px 0 0">RedStock — Croix-Rouge française</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 8px 8px">
+        <p>Bonjour <strong>${escapeHtml(prenom)}</strong>,</p>
+        <p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous :</p>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${escapeHtml(resetLink)}" style="background:#E30613;color:white;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
+            Réinitialiser mon mot de passe
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:14px">Ce lien est valable <strong>1 heure</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
+        <p style="color:#9ca3af;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">
+          Cet email est généré automatiquement par RedStock.
+        </p>
+      </div>
+    </div>`,
+  });
+}
+
+module.exports = { alertePeremption, alerteStockBas, notifPretUniforme, notifRetourUniforme, notifRetardUniforme, rappelControle, bienvenueUtilisateur, resetPassword };

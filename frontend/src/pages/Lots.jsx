@@ -325,78 +325,101 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
   const lots = stock.lots || [];
 
   return (
-    <div className="py-1.5">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <span className="text-gray-700 font-medium">{stock.article.nom}</span>
-          {isBelowMin && <span className="ml-1 text-xs text-red-500 font-medium">⚠ sous le min.</span>}
+    <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2.5">
+      {/* ── En-tête article ────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="text-sm font-semibold text-gray-800">{stock.article.nom}</span>
+          <PeremptionBadge lots={stock.lots} />
+          {isBelowMin && <span className="text-xs text-red-500 font-medium">⚠ sous le min.</span>}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <PeremptionBadge lots={stock.lots} />
-          <span className={`font-semibold ${
-            isBelowMin ? 'text-red-600' : isNearMin ? 'text-yellow-600' : 'text-gray-800'
-          }`}>×{stock.quantite_actuelle}</span>
-          {isAdmin ? (
-            <div className="flex items-center gap-1">
-              <span className="text-gray-400 text-xs">min.</span>
-              {editing ? (
-                <input type="number" min="0" autoFocus
-                  className="w-12 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
-                  defaultValue={min}
-                  onBlur={e => saveMin(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
-                />
-              ) : (
-                <button onClick={() => setEditing(true)}
-                  className={`text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 ${saving ? 'opacity-50' : ''}`}>
-                  {min}
-                </button>
-              )}
-              <button onClick={() => onEdit(stock)} className="btn-icon p-0.5 ml-1"><IconEdit size={12} /></button>
-              <button onClick={() => onDelete(stock)} className="btn-icon p-0.5 hover:text-red-500"><IconTrash size={12} /></button>
+          <div className="flex items-center gap-1.5 bg-gray-50 rounded-md px-2 py-1">
+            <span className="text-xs text-gray-500">Qté</span>
+            <span className={`text-sm font-bold ${
+              isBelowMin ? 'text-red-600' : isNearMin ? 'text-yellow-600' : 'text-gray-800'
+            }`}>{stock.quantite_actuelle}</span>
+            {min > 0 && (
+              <>
+                <span className="text-gray-300">|</span>
+                <span className="text-xs text-gray-400">min.</span>
+                {isAdmin && !editing ? (
+                  <button onClick={() => setEditing(true)}
+                    className={`text-xs font-semibold text-gray-600 hover:text-crf-rouge ${saving ? 'opacity-50' : ''}`}>
+                    {min}
+                  </button>
+                ) : isAdmin && editing ? (
+                  <input type="number" min="0" autoFocus
+                    className="w-10 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
+                    defaultValue={min}
+                    onBlur={e => saveMin(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
+                  />
+                ) : (
+                  <span className="text-xs text-gray-500">{min}</span>
+                )}
+              </>
+            )}
+          </div>
+          {isAdmin && (
+            <div className="flex gap-0.5">
+              <button onClick={() => onEdit(stock)} className="btn-icon p-1"><IconEdit size={13} /></button>
+              <button onClick={() => onDelete(stock)} className="btn-icon p-1 hover:text-red-500"><IconTrash size={13} /></button>
             </div>
-          ) : (
-            min > 0 && (
-              <span className="text-xs text-gray-400">
-                min. {min}
-              </span>
-            )
           )}
         </div>
       </div>
+
+      {/* ── Détail des lots ────────────────────────────────────── */}
       {lots.length > 0 && (
-        <div className="mt-1.5 ml-1 rounded-md overflow-hidden border border-gray-100">
-          <table className="w-full text-xs">
-            <tbody>
-              {lots.map((lot, i) => {
-                const statut = getLotPeremptionStatut(lot.date_peremption);
-                const rowBg = {
-                  perime: 'bg-red-50',
-                  j7: 'bg-orange-50',
-                  j30: 'bg-yellow-50',
-                }[statut] || 'bg-white';
-                const dateColor = {
-                  perime: 'text-red-600 font-medium',
-                  j7: 'text-orange-600 font-medium',
-                  j30: 'text-yellow-700',
-                }[statut] || 'text-gray-500';
-                return (
-                  <tr key={i} className={`${rowBg} border-t border-gray-100 first:border-t-0`}>
-                    <td className="py-1 px-2 font-mono text-gray-600 truncate max-w-[180px]">
-                      {lot.label || <span className="italic text-gray-400">Lot {i + 1}</span>}
-                    </td>
-                    <td className="py-1 px-2 text-gray-500 text-right w-12 whitespace-nowrap">×{lot.quantite}</td>
-                    <td className={`py-1 px-2 text-right whitespace-nowrap w-24 ${dateColor}`}>
-                      {lot.date_peremption
-                        ? new Date(lot.date_peremption).toLocaleDateString('fr-FR')
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="rounded-md overflow-hidden border border-gray-100">
+          {/* En-tête tableau */}
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Référence</span>
+            <span className="text-right w-10">Qté</span>
+            <span className="text-right w-24">Péremption</span>
+          </div>
+          {/* Lignes */}
+          {lots.map((lot, i) => {
+            const statut = getLotPeremptionStatut(lot.date_peremption);
+            const rowBg = {
+              perime: 'bg-red-50',
+              j7: 'bg-orange-50',
+              j30: 'bg-yellow-50',
+            }[statut] || (i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50');
+            const dateColor = {
+              perime: 'text-red-600 font-semibold',
+              j7: 'text-orange-600 font-semibold',
+              j30: 'text-yellow-700 font-medium',
+            }[statut] || 'text-gray-500';
+            const statusDot = {
+              perime: 'bg-red-500',
+              j7: 'bg-orange-400',
+              j30: 'bg-yellow-400',
+            }[statut];
+            return (
+              <div key={i} className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 ${rowBg} border-t border-gray-100`}>
+                <span className="text-xs text-gray-700 font-mono truncate">
+                  {lot.label || <span className="italic text-gray-400">Lot {i + 1}</span>}
+                </span>
+                <span className="text-xs text-gray-600 font-medium text-right w-10">{lot.quantite}</span>
+                <span className={`text-xs text-right w-24 flex items-center justify-end gap-1.5 ${dateColor}`}>
+                  {lot.date_peremption ? (
+                    <>
+                      {statusDot && <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusDot}`} />}
+                      {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}
+                    </>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
+      )}
+      {lots.length === 0 && (
+        <p className="text-xs text-gray-400 italic pl-1">Aucun lot renseigné</p>
       )}
     </div>
   );
@@ -448,7 +471,7 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock,
       </div>
 
       {open && (
-        <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 divide-y divide-gray-100">
+        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3 space-y-2.5">
           {pochette.stocks?.length === 0 && !isAdmin && (
             <p className="text-xs text-gray-400 py-2 text-center">Aucun article.</p>
           )}

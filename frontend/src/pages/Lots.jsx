@@ -398,8 +398,11 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
   const isNearMin = !isBelowMin && min > 0 && stock.quantite_actuelle <= Math.max(min + 2, Math.ceil(min * 1.2));
   const lots = stock.lots || [];
 
+  // Carte compacte si aucun lot utile (0-1 lot sans date ni référence)
+  const hasUsefulLots = lots.length > 1 || (lots.length === 1 && (lots[0].date_peremption || lots[0].label));
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2.5">
+    <div className={`bg-white rounded-lg border border-gray-200 ${hasUsefulLots ? 'p-3 space-y-2.5' : 'px-3 py-2'}`}>
       {/* ── En-tête article ────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -444,8 +447,8 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
         </div>
       </div>
 
-      {/* ── Détail des lots ────────────────────────────────────── */}
-      {lots.length > 0 && (
+      {/* ── Détail des lots (masqué si un seul lot sans date ni référence) ── */}
+      {hasUsefulLots && (
         <div className="rounded-md overflow-hidden border border-gray-100">
           {/* En-tête tableau */}
           <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -491,9 +494,6 @@ function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
             );
           })}
         </div>
-      )}
-      {lots.length === 0 && (
-        <p className="text-xs text-gray-400 italic pl-1">Aucun lot renseigné</p>
       )}
     </div>
   );

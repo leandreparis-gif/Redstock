@@ -47,6 +47,8 @@ model Log {
 model User {
   id              String        @id @default(cuid())
   prenom          String
+  nom             String?
+  email           String?
   qualification   Qualification
   role            Role
   login           String        @unique

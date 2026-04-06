@@ -95,7 +95,10 @@ export default function Sidebar({ open, onClose, alertesCount = 0 }) {
 
         {/* Profil */}
         <div className="border-t border-gray-100 px-4 py-4 flex-shrink-0">
-          <div className="flex items-center gap-3 mb-3">
+          <button
+            onClick={() => { navigate('/profil'); onClose(); }}
+            className="flex items-center gap-3 mb-3 w-full text-left rounded-xl px-1 py-1 hover:bg-gray-50 transition-colors"
+          >
             <div className="w-9 h-9 rounded-full bg-crf-rouge flex items-center justify-center
                             flex-shrink-0 text-white text-sm font-bold">{initiale}</div>
             <div className="min-w-0 flex-1">
@@ -104,7 +107,7 @@ export default function Sidebar({ open, onClose, alertesCount = 0 }) {
                 {user?.qualification} · {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : user?.role === 'ADMIN' ? 'Admin' : 'Contributeur'}
               </p>
             </div>
-          </div>
+          </button>
           <button onClick={handleLogout}
             className="flex items-center gap-2 w-full text-xs text-gray-400 hover:text-crf-rouge transition-colors px-1">
             <IconLogout size={14} />

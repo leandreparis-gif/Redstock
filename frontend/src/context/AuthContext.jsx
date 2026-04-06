@@ -60,12 +60,19 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const { data } = await apiClient.get('/auth/me');
+    localStorage.setItem(USER_KEY, JSON.stringify(data));
+    setUser(data);
+    return data;
+  }, []);
+
   const isSuperAdmin   = user?.role === 'SUPER_ADMIN';
   const isAdmin        = user?.role === 'ADMIN' || isSuperAdmin;
   const isContributeur = user?.role === 'CONTRIBUTEUR';
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isSuperAdmin, isAdmin, isContributeur }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, isSuperAdmin, isAdmin, isContributeur }}>
       {children}
     </AuthContext.Provider>
   );

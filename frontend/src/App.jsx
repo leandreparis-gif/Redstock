@@ -10,6 +10,7 @@ const ControleLot = React.lazy(() => import('./pages/ControleLot'));
 const Uniformes   = React.lazy(() => import('./pages/Uniformes'));
 const Reporting   = React.lazy(() => import('./pages/Reporting'));
 const Admin       = React.lazy(() => import('./pages/Admin'));
+const Profil      = React.lazy(() => import('./pages/Profil'));
 
 import Layout      from './components/Layout';
 import RequireAuth  from './components/RequireAuth';
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/lots"       element={<Lots />} />
               <Route path="/uniformes"  element={<Uniformes />} />
               <Route path="/reporting"  element={<Reporting />} />
+              <Route path="/profil"    element={<Profil />} />
 
               <Route element={<RequireAdmin />}>
                 <Route path="/admin/*" element={<Admin />} />

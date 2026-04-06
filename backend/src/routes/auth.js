@@ -4,6 +4,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const authMiddleware = require('../middleware/auth');
 
 const logAction = require('../utils/logAction');
 
@@ -39,6 +40,8 @@ router.post('/login', async (req, res) => {
     const payload = {
       id: user.id,
       prenom: user.prenom,
+      nom: user.nom,
+      email: user.email,
       qualification: user.qualification,
       role: user.role,
       unite_locale_id: user.unite_locale_id,
@@ -89,6 +92,8 @@ router.get('/me', async (req, res) => {
       select: {
         id: true,
         prenom: true,
+        nom: true,
+        email: true,
         qualification: true,
         role: true,
         login: true,
@@ -104,6 +109,8 @@ router.get('/me', async (req, res) => {
     res.json({
       id: user.id,
       prenom: user.prenom,
+      nom: user.nom,
+      email: user.email,
       qualification: user.qualification,
       role: user.role,
       login: user.login,
@@ -112,6 +119,87 @@ router.get('/me', async (req, res) => {
     });
   } catch (err) {
     res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+});
+
+/**
+ * PUT /api/auth/profile
+ * Modifier ses informations personnelles (prenom, nom, email).
+ */
+router.put('/profile', authMiddleware, async (req, res) => {
+  const { prenom, nom, email } = req.body;
+
+  if (!prenom || prenom.trim().length === 0) {
+    return res.status(400).json({ error: 'Le prénom est requis' });
+  }
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Adresse email invalide' });
+  }
+
+  try {
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        prenom: prenom.trim(),
+        nom: nom?.trim() || null,
+        email: email?.trim() || null,
+      },
+      select: {
+        id: true,
+        prenom: true,
+        nom: true,
+        email: true,
+        qualification: true,
+        role: true,
+        login: true,
+        unite_locale_id: true,
+        unite_locale: { select: { id: true, nom: true } },
+      },
+    });
+
+    res.json({
+      ...updated,
+      unite_locale_nom: updated.unite_locale?.nom || null,
+    });
+  } catch (err) {
+    console.error('[auth/profile]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/auth/password
+ * Modifier son propre mot de passe.
+ * Body : { currentPassword, newPassword }
+ */
+router.patch('/password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+    const passwordOk = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!passwordOk) {
+      return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: req.user.id }, data: { password_hash } });
+
+    res.json({ message: 'Mot de passe mis à jour' });
+  } catch (err) {
+    console.error('[auth/password]', err);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

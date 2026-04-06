@@ -10,10 +10,11 @@
     },
     {
       "name": "frontend",
-      "runtimeExecutable": "/opt/homebrew/bin/npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH && npm run dev -- --port $PORT"],
       "cwd": "/Users/leandreparis/Desktop/Pharma/pharmasecours/frontend",
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

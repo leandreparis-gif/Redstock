@@ -37,7 +37,7 @@ function drawHeader(doc, title, subtitle) {
   doc.text(title, 30, 16);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(subtitle || 'Croix-Rouge francaise — PharmaSecours', 30, 24);
+  doc.text(subtitle || 'Croix-Rouge francaise — RedStock', 30, 24);
 
   return 40; // y position après l'entête
 }
@@ -49,7 +49,7 @@ function drawFooter(doc) {
     doc.setFontSize(8);
     doc.setTextColor(...GRIS_CLAIR);
     doc.text(
-      `PharmaSecours — Document genere automatiquement le ${fmtDateTime(new Date())}`,
+      `RedStock — Document genere automatiquement le ${fmtDateTime(new Date())}`,
       105, 287, { align: 'center' },
     );
     doc.text(`Page ${i}/${pageCount}`, 195, 287, { align: 'right' });
@@ -69,7 +69,7 @@ export function generateRapportControle({
   anomalies,      // texte des remarques
 }) {
   const doc = new jsPDF();
-  let y = drawHeader(doc, 'Rapport de controle', `Croix-Rouge francaise — PharmaSecours`);
+  let y = drawHeader(doc, 'Rapport de controle', `Croix-Rouge francaise — RedStock`);
 
   // Infos générales
   doc.setFontSize(10);
@@ -294,7 +294,7 @@ export function generateDashboardPDF({
   prochainsControles, // [{ nom, dernierControle, dernierStatut, prochainControle, enRetard }]
 }) {
   const doc = new jsPDF();
-  let y = drawHeader(doc, 'Tableau de bord — Pharmacie', 'Croix-Rouge francaise — PharmaSecours');
+  let y = drawHeader(doc, 'Tableau de bord — Pharmacie', 'Croix-Rouge francaise — RedStock');
 
   // Date du rapport
   doc.setFontSize(9);

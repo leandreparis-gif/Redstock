@@ -121,7 +121,7 @@ function BarcodeModal({ article, onClose }) {
         <h2>${esc(article.nom)}</h2>
         <p>${esc(article.categorie)}</p>
         <div class="barcode">${svgData}</div>
-        <p style="font-size:10px;color:#aaa;margin-top:12px">PharmaSecours — Croix-Rouge francaise</p>
+        <p style="font-size:10px;color:#aaa;margin-top:12px">RedStock — Croix-Rouge francaise</p>
         <br/><button onclick="window.print()">Imprimer</button>
         <script>window.onload=()=>window.print()</script>
       </body></html>

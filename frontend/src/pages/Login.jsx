@@ -61,7 +61,7 @@ export default function Login() {
             </span>
           </h1>
           <p className="text-red-100 text-base max-w-xs leading-relaxed">
-            PharmaSecours centralise votre pharmacie, vos lots de secours et vos uniformes en un seul outil.
+            RedStock centralise votre pharmacie, vos lots de secours et vos uniformes en un seul outil.
           </p>
 
           {/* Fonctionnalités */}
@@ -199,7 +199,7 @@ export default function Login() {
           </form>
 
           <p className="text-center text-xs text-gray-400 mt-10">
-            PharmaSecours · Croix-Rouge française
+            RedStock · Croix-Rouge française
           </p>
         </div>
       </div>

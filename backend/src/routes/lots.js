@@ -106,12 +106,12 @@ router.get('/:id/qrcode', async (req, res) => {
  * Body : { nom }
  */
 router.post('/', requireAdmin, async (req, res) => {
-  const { nom } = req.body;
+  const { nom, couleur } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
 
   try {
     const lot = await prisma.lot.create({
-      data: { nom, unite_locale_id: getUlId(req) },
+      data: { nom, couleur: couleur || null, unite_locale_id: getUlId(req) },
     });
     res.status(201).json(lot);
   } catch (err) {
@@ -124,7 +124,7 @@ router.post('/', requireAdmin, async (req, res) => {
  * PUT /api/lots/:id
  */
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { nom, photo_url } = req.body;
+  const { nom, photo_url, couleur } = req.body;
   try {
     const existing = await prisma.lot.findFirst({
       where: { id: req.params.id, ...getUlFilter(req) },
@@ -136,6 +136,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
       data: {
         ...(nom !== undefined && { nom }),
         ...(photo_url !== undefined && { photo_url }),
+        ...(couleur !== undefined && { couleur: couleur || null }),
       },
     });
     res.json(lot);
@@ -170,7 +171,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
  * Body : { nom }
  */
 router.post('/:lotId/pochettes', requireAdmin, async (req, res) => {
-  const { nom } = req.body;
+  const { nom, couleur } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
 
   try {
@@ -180,7 +181,7 @@ router.post('/:lotId/pochettes', requireAdmin, async (req, res) => {
     if (!lot) return res.status(404).json({ error: 'Lot introuvable' });
 
     const pochette = await prisma.pochette.create({
-      data: { nom, lot_id: req.params.lotId },
+      data: { nom, couleur: couleur || null, lot_id: req.params.lotId },
     });
     res.status(201).json(pochette);
   } catch (err) {
@@ -193,7 +194,7 @@ router.post('/:lotId/pochettes', requireAdmin, async (req, res) => {
  * PUT /api/lots/:lotId/pochettes/:id
  */
 router.put('/:lotId/pochettes/:id', requireAdmin, async (req, res) => {
-  const { nom } = req.body;
+  const { nom, couleur } = req.body;
   try {
     const pochette = await prisma.pochette.findFirst({
       where: { id: req.params.id, lot_id: req.params.lotId },
@@ -202,7 +203,10 @@ router.put('/:lotId/pochettes/:id', requireAdmin, async (req, res) => {
 
     const updated = await prisma.pochette.update({
       where: { id: req.params.id },
-      data: { ...(nom !== undefined && { nom }) },
+      data: {
+        ...(nom !== undefined && { nom }),
+        ...(couleur !== undefined && { couleur: couleur || null }),
+      },
     });
     res.json(updated);
   } catch (err) {

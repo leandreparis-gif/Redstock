@@ -55,10 +55,82 @@ function copyToClipboard(text) {
 
 import Modal from '../components/Modal';
 
+// ─── Palette de couleurs pastelles ───────────────────────────────────────────
+
+const PASTEL_COLORS = [
+  { hex: '#FECDD3', label: 'Rose' },
+  { hex: '#FED7AA', label: 'Pêche' },
+  { hex: '#FEF08A', label: 'Jaune' },
+  { hex: '#BBF7D0', label: 'Vert d\'eau' },
+  { hex: '#A7F3D0', label: 'Menthe' },
+  { hex: '#BAE6FD', label: 'Bleu ciel' },
+  { hex: '#C7D2FE', label: 'Lavande' },
+  { hex: '#DDD6FE', label: 'Lilas' },
+  { hex: '#F5D0FE', label: 'Mauve' },
+  { hex: '#E5E7EB', label: 'Gris perle' },
+];
+
+function ColorPicker({ value, onChange }) {
+  const [showCustom, setShowCustom] = useState(false);
+
+  return (
+    <div>
+      <label className="label">Couleur de fond</label>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Aucune couleur */}
+        <button
+          type="button"
+          onClick={() => { onChange(null); setShowCustom(false); }}
+          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs
+            ${!value ? 'border-crf-rouge ring-2 ring-crf-rouge/30' : 'border-gray-300 hover:border-gray-400'}`}
+          title="Aucune"
+        >
+          ✕
+        </button>
+        {/* Pastels */}
+        {PASTEL_COLORS.map(c => (
+          <button
+            key={c.hex}
+            type="button"
+            onClick={() => { onChange(c.hex); setShowCustom(false); }}
+            className={`w-7 h-7 rounded-full border-2 transition-all
+              ${value === c.hex ? 'border-crf-rouge ring-2 ring-crf-rouge/30 scale-110' : 'border-gray-200 hover:border-gray-400 hover:scale-105'}`}
+            style={{ backgroundColor: c.hex }}
+            title={c.label}
+          />
+        ))}
+        {/* Personnalisée */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowCustom(s => !s)}
+            className={`w-7 h-7 rounded-full border-2 border-dashed flex items-center justify-center text-xs
+              ${showCustom || (value && !PASTEL_COLORS.find(c => c.hex === value))
+                ? 'border-crf-rouge text-crf-rouge'
+                : 'border-gray-300 text-gray-400 hover:border-gray-400'}`}
+            style={value && !PASTEL_COLORS.find(c => c.hex === value) ? { backgroundColor: value } : {}}
+            title="Personnalisée"
+          >
+            {!value || PASTEL_COLORS.find(c => c.hex === value) ? '🎨' : ''}
+          </button>
+          {showCustom && (
+            <input
+              type="color"
+              value={value || '#BAE6FD'}
+              onChange={e => onChange(e.target.value)}
+              className="absolute top-9 left-0 w-8 h-8 p-0 border-0 cursor-pointer"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal Lot ────────────────────────────────────────────────────────────────
 
 function LotModal({ initial, onSave, onClose, loading }) {
-  const [form, setForm] = useState({ nom: initial?.nom || '' });
+  const [form, setForm] = useState({ nom: initial?.nom || '', couleur: initial?.couleur || null });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(initial?.photo_url || null);
   const [uploading, setUploading] = useState(false);
@@ -110,6 +182,7 @@ function LotModal({ initial, onSave, onClose, loading }) {
           <p className="text-xs text-gray-400 mt-1">La photo sera uploadée après la création du lot.</p>
         )}
       </div>
+      <ColorPicker value={form.couleur} onChange={c => setForm(f => ({ ...f, couleur: c }))} />
       <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
         <button className="btn-primary" disabled={!form.nom || isBusy}
@@ -124,7 +197,7 @@ function LotModal({ initial, onSave, onClose, loading }) {
 // ─── Modal Pochette ───────────────────────────────────────────────────────────
 
 function PochetteModal({ initial, lotNom, onSave, onClose, loading }) {
-  const [form, setForm] = useState({ nom: initial?.nom || '' });
+  const [form, setForm] = useState({ nom: initial?.nom || '', couleur: initial?.couleur || null });
 
   return (
     <Modal title={initial ? 'Modifier la pochette' : `Nouvelle pochette — ${lotNom}`} onClose={onClose}>
@@ -133,6 +206,7 @@ function PochetteModal({ initial, lotNom, onSave, onClose, loading }) {
         <input className="input" value={form.nom}
           onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
       </div>
+      <ColorPicker value={form.couleur} onChange={c => setForm(f => ({ ...f, couleur: c }))} />
       <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
         <button className="btn-primary" disabled={!form.nom || loading}
@@ -430,14 +504,15 @@ function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock,
   const stockCount = pochette.stocks?.length || 0;
 
   return (
-    <div className="border border-gray-100 rounded-md overflow-hidden">
+    <div className="border border-gray-200 rounded-md overflow-hidden"
+      style={pochette.couleur ? { backgroundColor: pochette.couleur } : {}}>
       <div
         role="button"
         tabIndex={0}
         onClick={() => setOpen(o => !o)}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o); } }}
-        className="w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5
-                   bg-white hover:bg-gray-50 transition-colors text-left cursor-pointer"
+        className={`w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5
+                   transition-colors text-left cursor-pointer ${pochette.couleur ? 'hover:brightness-95' : 'bg-white hover:bg-gray-50'}`}
       >
         {/* Ligne nom */}
         <div className="flex items-center gap-2 w-full min-w-0">
@@ -503,9 +578,9 @@ function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPo
   const pochetteCount = lot.pochettes?.length || 0;
 
   return (
-    <div className="card p-0 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-5 py-4
-                      border-b border-gray-100 cursor-pointer hover:bg-gray-50/60 transition-colors"
+    <div className="card p-0 overflow-hidden" style={lot.couleur ? { backgroundColor: lot.couleur } : {}}>
+      <div className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-5 py-4
+                      border-b border-gray-100/60 cursor-pointer transition-colors ${lot.couleur ? 'hover:brightness-95' : 'hover:bg-gray-50/60'}`}
         onClick={() => setOpen(o => !o)}
       >
         {/* Ligne nom */}

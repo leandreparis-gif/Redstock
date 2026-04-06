@@ -139,6 +139,7 @@ model Lot {
   id             String   @id @default(cuid())
   nom            String
   photo_url      String?
+  couleur        String?
   qr_code_token  String   @unique @default(uuid())
   created_at     DateTime @default(now())
 
@@ -151,6 +152,7 @@ model Lot {
 model Pochette {
   id         String   @id @default(cuid())
   nom        String
+  couleur    String?
   created_at DateTime @default(now())
 
   lot_id String

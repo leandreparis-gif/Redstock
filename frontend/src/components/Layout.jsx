@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, Link } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { IconMenu, IconAlerte, IconBarcode } from './Icons';
 import { useAlertes } from '../hooks/useAlertes';
@@ -348,11 +348,12 @@ export default function Layout() {
             )}
           </div>
 
-          {/* Avatar */}
-          <div className="w-9 h-9 rounded-full bg-crf-rouge flex items-center justify-center
-                          text-white text-sm font-bold flex-shrink-0 cursor-pointer">
+          {/* Avatar → Profil */}
+          <Link to="/profil" className="w-9 h-9 rounded-full bg-crf-rouge flex items-center justify-center
+                          text-white text-sm font-bold flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                title="Mon profil">
             {initiale}
-          </div>
+          </Link>
         </header>
 
         {/* Contenu */}

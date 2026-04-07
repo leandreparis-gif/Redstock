@@ -12,10 +12,10 @@ async function verifierAlertes() {
   console.log('[CRON] Vérification des alertes — démarrage à', new Date().toISOString());
 
   try {
-    const uniteLocales = await prisma.uniteLocale.findMany({ select: { id: true, nom: true } });
+    const uniteLocales = await prisma.uniteLocale.findMany({ select: { id: true, nom: true, destinataires_alertes: true } });
 
     for (const ul of uniteLocales) {
-      await verifierAlertesUL(ul.id);
+      await verifierAlertesUL(ul.id, ul.destinataires_alertes || []);
     }
     console.log('[CRON] Vérification terminée');
   } catch (err) {
@@ -23,7 +23,7 @@ async function verifierAlertes() {
   }
 }
 
-async function verifierAlertesUL(uniteLocaleId) {
+async function verifierAlertesUL(uniteLocaleId, destinataires) {
   const aujourd_hui = new Date();
   const limiteDateAlerte = new Date();
   limiteDateAlerte.setDate(aujourd_hui.getDate() + JOURS_ALERTE);
@@ -67,6 +67,19 @@ async function verifierAlertesUL(uniteLocaleId) {
             },
           });
           console.log(`[CRON] Alerte PEREMPTION créée — ${stock.article.nom}`);
+
+          if (destinataires.length > 0) {
+            try {
+              await alertePeremption({
+                articleNom: stock.article.nom,
+                datePeremption,
+                localisation,
+                destinataires,
+              });
+            } catch (err) {
+              console.error(`[CRON] Erreur email péremption:`, err.message);
+            }
+          }
         }
       }
     }
@@ -96,6 +109,21 @@ async function verifierAlertesUL(uniteLocaleId) {
         },
       });
       console.log(`[CRON] Alerte STOCK_BAS créée — ${stock.article.nom}`);
+
+      if (destinataires.length > 0) {
+        try {
+          const localisation = `${stock.tiroir.armoire.nom} > ${stock.tiroir.nom}`;
+          await alerteStockBas({
+            articleNom: stock.article.nom,
+            quantiteActuelle: stock.quantite_actuelle,
+            quantiteMin: stock.article.quantite_min,
+            localisation,
+            destinataires,
+          });
+        } catch (err) {
+          console.error(`[CRON] Erreur email stock bas:`, err.message);
+        }
+      }
     }
   }
 

@@ -1018,6 +1018,115 @@ function ULModal({ initial, onSave, onClose, loading }) {
   );
 }
 
+// ─── Section Alertes Email ──────────────────────────────────────────────────
+
+function AdminAlertes() {
+  const [emails, setEmails] = useState([]);
+  const [emailInput, setEmailInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  useEffect(() => {
+    apiClient.get('/unite-locale')
+      .then(({ data }) => {
+        const ul = Array.isArray(data) ? data[0] : data;
+        setEmails(ul?.destinataires_alertes || []);
+      })
+      .catch(() => showToast('Erreur chargement', 'error'))
+      .finally(() => setLoading(false));
+  }, [showToast]);
+
+  const addEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (emails.includes(email)) return;
+    setEmails(prev => [...prev, email]);
+    setEmailInput('');
+    setDirty(true);
+  };
+
+  const removeEmail = (email) => {
+    setEmails(prev => prev.filter(e => e !== email));
+    setDirty(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiClient.patch('/unite-locale/alertes', { destinataires_alertes: emails });
+      setDirty(false);
+      showToast('Destinataires mis à jour');
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Erreur', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement...</p></div>
+  );
+
+  return (
+    <div>
+      <div className="card p-5 space-y-4 max-w-lg">
+        <p className="text-sm text-gray-500">
+          Configurez les adresses email qui recevront les alertes de stock bas et de péremption.
+        </p>
+
+        <div>
+          <label className="label">Ajouter un destinataire</label>
+          <div className="flex gap-2">
+            <input type="email" className="input flex-1" placeholder="email@exemple.fr" value={emailInput}
+              onChange={e => setEmailInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEmail(); } }} />
+            <button type="button" className="btn-secondary text-sm px-3" onClick={addEmail}>Ajouter</button>
+          </div>
+        </div>
+
+        {emails.length > 0 ? (
+          <div>
+            <label className="label">Destinataires ({emails.length})</label>
+            <div className="flex flex-wrap gap-1.5">
+              {emails.map(email => (
+                <span key={email} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded-full">
+                  {email}
+                  <button type="button" className="text-gray-400 hover:text-red-500 text-sm leading-none"
+                    onClick={() => removeEmail(email)}>&times;</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-sm text-amber-700">
+              Aucun destinataire. Les alertes de stock et de péremption ne seront pas envoyées par email.
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <button className="btn-primary" disabled={!dirty || saving} onClick={handleSave}>
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+      {toast && (
+        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Navigation Admin ─────────────────────────────────────────────────────────
 
 function AdminNav() {
@@ -1027,6 +1136,7 @@ function AdminNav() {
     { to: '/admin/articles',       label: 'Articles' },
     { to: '/admin/utilisateurs',  label: 'Utilisateurs' },
     { to: '/admin/planification', label: 'Planification' },
+    { to: '/admin/alertes',       label: 'Alertes email' },
     ...(isSuperAdmin ? [{ to: '/admin/unites-locales', label: 'Unites locales' }] : []),
     ...(isSuperAdmin ? [{ to: '/admin/unite-locale',  label: 'Modifier UL' }] : []),
     { to: '/admin/logs',          label: 'Logs' },
@@ -1059,6 +1169,7 @@ export default function Admin() {
         <Route path="articles"        element={<AdminArticles />} />
         <Route path="utilisateurs"   element={<AdminUtilisateurs />} />
         <Route path="planification"  element={<AdminPlanification />} />
+        <Route path="alertes"        element={<AdminAlertes />} />
         <Route path="unites-locales" element={<AdminUnitesLocales />} />
         <Route path="unite-locale"   element={<AdminUniteLocale />} />
         <Route path="logs"           element={<AdminLogs />} />

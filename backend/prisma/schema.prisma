@@ -15,6 +15,7 @@ model UniteLocale {
   telephone  String?
   email      String?
   adresse    String?
+  destinataires_alertes Json @default("[]")
   created_at DateTime @default(now())
 
   users            User[]

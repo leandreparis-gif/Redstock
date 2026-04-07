@@ -230,23 +230,29 @@ async function notifPretUniforme({ uniformeNom, taille, beneficiaire, qualificat
   const dateFormatee = new Date(dateRetourPrevue).toLocaleDateString('fr-FR');
   await send({
     to: destinataires,
-    subject: `Prêt uniforme — ${uniformeNom} (${taille}) à ${beneficiaire}`,
+    subject: `Prêt d'uniforme — ${uniformeNom} (${taille})`,
     html: emailLayout({
       title: 'Prêt d\'uniforme',
-      preheader: `${uniformeNom} prêté à ${beneficiaire}.`,
+      preheader: `${beneficiaire}, un uniforme vous a été prêté.`,
       accentColor: '#2563eb',
       body: `
         <div style="margin:0 0 20px">${badge('PRÊT', '#eff6ff', '#2563eb')}</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#18181b">Uniforme prêté</h1>
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#18181b">Un uniforme vous a été prêté</h1>
+        <p style="margin:0 0 4px;font-size:14px;color:#52525b;line-height:1.6">
+          Bonjour <strong>${escapeHtml(beneficiaire)}</strong>,
+        </p>
         <p style="margin:0 0 20px;font-size:14px;color:#52525b;line-height:1.6">
-          Un uniforme a été prêté. Voici les détails :
+          Un uniforme vous a été prêté. Merci de le retourner en bon état à la date prévue.
         </p>
         ${infoTable([
           ['Uniforme', `<strong>${escapeHtml(uniformeNom)}</strong> — ${escapeHtml(taille)}`],
-          ['Bénéficiaire', `${escapeHtml(beneficiaire)} (${escapeHtml(qualification)})`],
-          ['Retour prévu le', `<strong>${dateFormatee}</strong>`],
+          ['Date de retour', `<strong style="color:#2563eb">${dateFormatee}</strong>`],
         ])}
-        ${ctaButton('Gérer les uniformes', FRONTEND_URL + '/uniformes', '#2563eb')}`,
+        <div style="background:#eff6ff;border-radius:10px;padding:14px 16px;margin:20px 0 0">
+          <p style="margin:0;font-size:12px;color:#1e40af;line-height:1.5">
+            Pensez à retourner l'uniforme avant le <strong>${dateFormatee}</strong>. En cas d'empêchement, contactez votre responsable.
+          </p>
+        </div>`,
     }),
   });
 }
@@ -280,24 +286,30 @@ async function notifRetardUniforme({ uniformeNom, taille, beneficiaire, qualific
   const dateFormatee = new Date(dateRetourPrevue).toLocaleDateString('fr-FR');
   await send({
     to: destinataires,
-    subject: `Retard uniforme — ${uniformeNom} (+${joursRetard}j)`,
+    subject: `Rappel — Uniforme ${uniformeNom} à retourner (+${joursRetard}j)`,
     html: emailLayout({
       title: 'Retard de retour d\'uniforme',
-      preheader: `${uniformeNom} non rendu — ${joursRetard} jours de retard.`,
+      preheader: `${beneficiaire}, votre uniforme est en retard de ${joursRetard} jours.`,
       accentColor: '#dc2626',
       body: `
         <div style="margin:0 0 20px">${badge(`${joursRetard}J DE RETARD`, '#fef2f2', '#dc2626')}</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#18181b">Uniforme non rendu</h1>
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#18181b">Uniforme à retourner</h1>
+        <p style="margin:0 0 4px;font-size:14px;color:#52525b;line-height:1.6">
+          Bonjour <strong>${escapeHtml(beneficiaire)}</strong>,
+        </p>
         <p style="margin:0 0 20px;font-size:14px;color:#52525b;line-height:1.6">
-          Un uniforme n'a pas été rendu à la date prévue. Contactez le bénéficiaire pour organiser le retour.
+          L'uniforme qui vous a été prêté devait être retourné le <strong>${dateFormatee}</strong>. Merci de le rapporter dès que possible.
         </p>
         ${infoTable([
           ['Uniforme', `<strong>${escapeHtml(uniformeNom)}</strong> — ${escapeHtml(taille)}`],
-          ['Bénéficiaire', `${escapeHtml(beneficiaire)} (${escapeHtml(qualification)})`],
           ['Retour prévu le', `<span style="color:#dc2626;font-weight:700">${dateFormatee}</span>`],
           ['Retard', `<span style="color:#dc2626;font-weight:800">${joursRetard} jour${joursRetard > 1 ? 's' : ''}</span>`],
         ])}
-        ${ctaButton('Gérer les uniformes', FRONTEND_URL + '/uniformes')}`,
+        <div style="background:#fef2f2;border-radius:10px;padding:14px 16px;margin:20px 0 0">
+          <p style="margin:0;font-size:12px;color:#991b1b;line-height:1.5">
+            Si vous avez déjà retourné cet uniforme, merci d'ignorer ce message. Sinon, contactez votre responsable pour organiser le retour.
+          </p>
+        </div>`,
     }),
   });
 }

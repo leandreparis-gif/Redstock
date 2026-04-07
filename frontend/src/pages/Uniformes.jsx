@@ -22,6 +22,10 @@ const TYPES_UNIFORMES = [
   { label: 'Scratch secouriste', taille: false },
   { label: 'Scratch équipier secouriste', taille: false },
   { label: 'Scratch CI', taille: false },
+  { label: 'Scratch CDPE', taille: false },
+  { label: 'Scratch stagiaire', taille: false },
+  { label: 'Scratch formateur', taille: false },
+  { label: 'Scratch Direction locale', taille: false },
 ];
 
 function UniformeModal({ initial, onSave, onClose, loading }) {

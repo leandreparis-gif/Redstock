@@ -265,6 +265,7 @@ enum TailleUniforme {
   L
   XL
   XXL
+  TU
 }
 
 enum EtatUniforme {

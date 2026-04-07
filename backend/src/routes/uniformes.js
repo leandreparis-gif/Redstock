@@ -104,7 +104,7 @@ router.post('/', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Nom, taille et état requis' });
   }
 
-  const tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+  const tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'TU'];
   const etats = ['NEUF', 'BON', 'USE'];
 
   if (!tailles.includes(taille)) return res.status(400).json({ error: 'Taille invalide' });

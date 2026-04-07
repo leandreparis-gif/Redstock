@@ -1,683 +1,78 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
-import { IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight, IconCopy } from '../components/Icons';
+import { IconPlus } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
 import { useLots } from '../hooks/useLots';
 import { uploadLotPhoto } from '../lib/supabase';
 import { useArticles } from '../hooks/useArticles';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getLotPeremptionStatut(date_peremption) {
-  if (!date_peremption) return null;
-  const d = new Date(date_peremption);
-  const diff = (d - new Date()) / (1000 * 60 * 60 * 24);
-  if (diff < 0) return 'perime';
-  if (diff <= 7) return 'j7';
-  if (diff <= 30) return 'j30';
-  return null;
-}
-
-function getPeremptionStatut(lots) {
-  if (!lots || lots.length === 0) return null;
-  const now = new Date();
-  let worst = null;
-  for (const lot of lots) {
-    if (!lot.date_peremption) continue;
-    const d = new Date(lot.date_peremption);
-    const diff = (d - now) / (1000 * 60 * 60 * 24);
-    if (diff < 0) return 'perime';
-    if (diff <= 7) { if (worst !== 'perime') worst = 'j7'; }
-    else if (diff <= 30) { if (!worst) worst = 'j30'; }
-  }
-  return worst;
-}
-
-function PeremptionBadge({ lots }) {
-  const statut = getPeremptionStatut(lots);
-  if (!statut) return null;
-  const styles = {
-    perime: 'bg-red-100 text-red-700',
-    j7: 'bg-orange-100 text-orange-700',
-    j30: 'bg-yellow-100 text-yellow-700',
-  };
-  const labels = { perime: 'Périmé', j7: '< 7j', j30: '< 30j' };
-  return (
-    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${styles[statut]}`}>
-      {labels[statut]}
-    </span>
-  );
-}
-
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text).catch(() => {});
-}
-
-import Modal from '../components/Modal';
-
-// ─── Palette de couleurs pastelles ───────────────────────────────────────────
-
-const PASTEL_COLORS = [
-  { hex: '#FECDD3', label: 'Rose' },
-  { hex: '#FED7AA', label: 'Pêche' },
-  { hex: '#FEF08A', label: 'Jaune' },
-  { hex: '#BBF7D0', label: 'Vert d\'eau' },
-  { hex: '#A7F3D0', label: 'Menthe' },
-  { hex: '#BAE6FD', label: 'Bleu ciel' },
-  { hex: '#C7D2FE', label: 'Lavande' },
-  { hex: '#DDD6FE', label: 'Lilas' },
-  { hex: '#F5D0FE', label: 'Mauve' },
-  { hex: '#E5E7EB', label: 'Gris perle' },
-];
-
-function ColorPicker({ value, onChange }) {
-  const [showCustom, setShowCustom] = useState(false);
-
-  return (
-    <div>
-      <label className="label">Couleur de fond</label>
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Aucune couleur */}
-        <button
-          type="button"
-          onClick={() => { onChange(null); setShowCustom(false); }}
-          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs
-            ${!value ? 'border-crf-rouge ring-2 ring-crf-rouge/30' : 'border-gray-300 hover:border-gray-400'}`}
-          title="Aucune"
-        >
-          ✕
-        </button>
-        {/* Pastels */}
-        {PASTEL_COLORS.map(c => (
-          <button
-            key={c.hex}
-            type="button"
-            onClick={() => { onChange(c.hex); setShowCustom(false); }}
-            className={`w-7 h-7 rounded-full border-2 transition-all
-              ${value === c.hex ? 'border-crf-rouge ring-2 ring-crf-rouge/30 scale-110' : 'border-gray-200 hover:border-gray-400 hover:scale-105'}`}
-            style={{ backgroundColor: c.hex }}
-            title={c.label}
-          />
-        ))}
-        {/* Personnalisée */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowCustom(s => !s)}
-            className={`w-7 h-7 rounded-full border-2 border-dashed flex items-center justify-center text-xs
-              ${showCustom || (value && !PASTEL_COLORS.find(c => c.hex === value))
-                ? 'border-crf-rouge text-crf-rouge'
-                : 'border-gray-300 text-gray-400 hover:border-gray-400'}`}
-            style={value && !PASTEL_COLORS.find(c => c.hex === value) ? { backgroundColor: value } : {}}
-            title="Personnalisée"
-          >
-            {!value || PASTEL_COLORS.find(c => c.hex === value) ? '🎨' : ''}
-          </button>
-          {showCustom && (
-            <input
-              type="color"
-              value={value || '#BAE6FD'}
-              onChange={e => onChange(e.target.value)}
-              className="absolute top-9 left-0 w-8 h-8 p-0 border-0 cursor-pointer"
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal Lot ────────────────────────────────────────────────────────────────
-
-function LotModal({ initial, onSave, onClose, loading }) {
-  const [form, setForm] = useState({ nom: initial?.nom || '', couleur: initial?.couleur || null });
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(initial?.photo_url || null);
-  const [uploading, setUploading] = useState(false);
-
-  const handlePhoto = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  };
-
-  const handleSave = async () => {
-    let photo_url = initial?.photo_url || null;
-    if (photoFile && initial?.id) {
-      setUploading(true);
-      try { photo_url = await uploadLotPhoto(photoFile, initial.id); }
-      catch { /* ignore upload error */ }
-      finally { setUploading(false); }
-    }
-    onSave({ ...form, photo_url, _pendingPhoto: photoFile });
-  };
-
-  const isBusy = loading || uploading;
-
-  return (
-    <Modal title={initial ? 'Modifier le lot' : 'Nouveau lot'} onClose={onClose}>
-      <div>
-        <label className="label">Nom *</label>
-        <input className="input" value={form.nom}
-          onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
-      </div>
-      <div>
-        <label className="label">Photo du lot</label>
-        <div className="flex items-center gap-3">
-          {photoPreview && (
-            <img src={photoPreview} alt="aperçu" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
-          )}
-          <label className="btn-secondary cursor-pointer text-sm">
-            📷 {photoPreview ? 'Changer' : 'Ajouter une photo'}
-            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-          </label>
-          {photoPreview && (
-            <button className="text-xs text-red-500" onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}>
-              Supprimer
-            </button>
-          )}
-        </div>
-        {!initial && photoFile && (
-          <p className="text-xs text-gray-400 mt-1">La photo sera uploadée après la création du lot.</p>
-        )}
-      </div>
-      <ColorPicker value={form.couleur} onChange={c => setForm(f => ({ ...f, couleur: c }))} />
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!form.nom || isBusy}
-          onClick={handleSave}>
-          {isBusy ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Modal Pochette ───────────────────────────────────────────────────────────
-
-function PochetteModal({ initial, lotNom, onSave, onClose, loading }) {
-  const [form, setForm] = useState({ nom: initial?.nom || '', couleur: initial?.couleur || null });
-
-  return (
-    <Modal title={initial ? 'Modifier la pochette' : `Nouvelle pochette — ${lotNom}`} onClose={onClose}>
-      <div>
-        <label className="label">Nom *</label>
-        <input className="input" value={form.nom}
-          onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
-      </div>
-      <ColorPicker value={form.couleur} onChange={c => setForm(f => ({ ...f, couleur: c }))} />
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!form.nom || loading}
-          onClick={() => onSave(form)}>
-          {loading ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Modal QR Code ────────────────────────────────────────────────────────────
-
-function QRCodeModal({ lot, onClose }) {
-  const qrUrl = `${window.location.origin}/controle/lot/${lot.qr_code_token}`;
-  const canvasRef = React.useRef(null);
-
-  React.useEffect(() => {
-    import('qrcode').then(QRCode => {
-      if (canvasRef.current) {
-        QRCode.toCanvas(canvasRef.current, qrUrl, { width: 220, margin: 2 });
-      }
-    });
-  }, [qrUrl]);
-
-  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
-  const handlePrint = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    const win = window.open('', '_blank');
-    win.document.write(`
-      <html><head><title>QR — ${esc(lot.nom)}</title>
-      <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
-        img { display: block; margin: 0 auto 16px; }
-        h2 { font-size: 20px; margin-bottom: 4px; }
-        p { font-size: 13px; color: #666; }
-        @media print { button { display: none; } }
-      </style></head>
-      <body>
-        <img src="${dataUrl}" width="220" />
-        <h2>${esc(lot.nom)}</h2>
-        <p>Scannez pour contrôler le matériel</p>
-        <p style="font-size:10px;color:#aaa;margin-top:8px">${qrUrl}</p>
-        <br/><button onclick="window.print()">🖨 Imprimer</button>
-        <script>window.onload=()=>window.print()</script>
-      </body></html>
-    `);
-    win.document.close();
-  };
-
-  return (
-    <Modal title={`QR Code — ${lot.nom}`} onClose={onClose}>
-      <div className="text-center">
-        <p className="text-sm text-gray-500 mb-4">Scannez ce code pour accéder à la page de contrôle sans connexion.</p>
-        <canvas ref={canvasRef} className="mx-auto rounded-lg" />
-        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded text-xs mt-4">
-          <input type="text" readOnly value={qrUrl} className="input text-xs py-1 flex-1 bg-white" />
-          <button onClick={() => copyToClipboard(qrUrl)} className="btn-icon p-1">
-            <IconCopy size={13} />
-          </button>
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose}>Fermer</button>
-        <button className="btn-primary" onClick={handlePrint}>🖨 Imprimer</button>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Modal Stock Pochette ─────────────────────────────────────────────────────
-
-function StockPochetteModal({ pochetteNom, articles, initial, onSave, onClose, loading }) {
-  const [articleId, setArticleId] = useState(initial?.article?.id || '');
-  const [lots, setLots] = useState(
-    initial?.lots?.length
-      ? initial.lots.map(l => ({
-          label: l.label || '',
-          date_peremption: l.date_peremption ? String(l.date_peremption).slice(0, 10) : '',
-          quantite: l.quantite ?? 0,
-        }))
-      : [{ label: '', date_peremption: '', quantite: 1 }]
-  );
-
-  const article = articles.find(a => a.id === articleId);
-  const addLot    = () => setLots(l => [...l, { label: '', date_peremption: '', quantite: 1 }]);
-  const removeLot = (i) => setLots(l => l.filter((_, j) => j !== i));
-  const updateLot = (i, field, val) =>
-    setLots(l => l.map((lot, j) => j === i ? { ...lot, [field]: val } : lot));
-  const totalLots = lots.reduce((s, l) => s + (parseInt(l.quantite) || 0), 0);
-
-  const handleSave = () => {
-    const lotsClean = lots
-      .map(l => ({
-        label: (l.label || '').trim(),
-        date_peremption: l.date_peremption || null,
-        quantite: parseInt(l.quantite) || 0,
-      }))
-      // Garder un lot dès qu'il a une info utile : réf, date ou quantité
-      .filter(l => l.label || l.date_peremption || l.quantite > 0);
-    onSave({ articleId, quantite_actuelle: totalLots, lots: lotsClean });
-  };
-
-  return (
-    <Modal title={`${initial ? 'Modifier' : 'Ajouter'} un article — ${pochetteNom}`} onClose={onClose}>
-      <div>
-        <label className="label">Article *</label>
-        <select className="select" value={articleId} onChange={e => setArticleId(e.target.value)} disabled={!!initial}>
-          <option value="">Choisir un article…</option>
-          {articles.map(a => <option key={a.id} value={a.id}>{a.nom} ({a.categorie})</option>)}
-        </select>
-      </div>
-
-      {articleId && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="label mb-0">
-              Lots
-              {article?.est_perimable && <span className="ml-2 text-xs text-orange-500 font-normal">— article périmable</span>}
-            </p>
-            <button type="button" onClick={addLot} className="text-xs text-crf-rouge hover:underline font-medium">
-              + Ajouter un lot
-            </button>
-          </div>
-          <div className="space-y-2">
-            {lots.map((lot, i) => (
-              <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-md p-2">
-                <div className="flex-1 space-y-1">
-                  <input className="input text-xs py-1" placeholder="Référence lot (optionnel)"
-                    value={lot.label} onChange={e => updateLot(i, 'label', e.target.value)} />
-                  <div className="flex gap-2">
-                    {article?.est_perimable && (
-                      <input type="date" className="input text-xs py-1 flex-1"
-                        value={lot.date_peremption || ''} onChange={e => updateLot(i, 'date_peremption', e.target.value)} />
-                    )}
-                    <input type="number" min="0" className="input text-xs py-1 w-20"
-                      placeholder="Qté" value={lot.quantite} onChange={e => updateLot(i, 'quantite', e.target.value)} />
-                  </div>
-                </div>
-                {lots.length > 1 && (
-                  <button onClick={() => removeLot(i)} className="text-gray-300 hover:text-red-500 mt-1">×</button>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">Quantité totale : <strong>{totalLots}</strong></p>
-        </div>
-      )}
-
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!articleId || totalLots < 0 || loading} onClick={handleSave}>
-          {loading ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Pochette Card ────────────────────────────────────────────────────────────
-
-import apiClient from '../api/client';
-
-function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete }) {
-  const [min, setMin] = useState(stock.quantite_minimum ?? 0);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const saveMin = async (val) => {
-    const newVal = Math.max(0, parseInt(val) || 0);
-    setMin(newVal);
-    setEditing(false);
-    setSaving(true);
-    try {
-      await apiClient.patch(`/lots/pochettes/${pochetteId}/stock/${stock.article_id}/minimum`, {
-        quantite_minimum: newVal,
-      });
-    } catch {
-      setMin(stock.quantite_minimum ?? 0);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const isBelowMin = stock.quantite_actuelle < min && min > 0;
-  const isNearMin = !isBelowMin && min > 0 && stock.quantite_actuelle <= Math.max(min + 2, Math.ceil(min * 1.2));
-  const lots = stock.lots || [];
-
-  // Carte compacte si aucun lot utile (0-1 lot sans date ni référence)
-  const hasUsefulLots = lots.length > 1 || (lots.length === 1 && (lots[0].date_peremption || lots[0].label));
-
-  return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${hasUsefulLots ? 'p-3 space-y-2.5' : 'px-3 py-2'}`}>
-      {/* ── En-tête article ────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm font-semibold text-gray-800">{stock.article.nom}</span>
-          <PeremptionBadge lots={stock.lots} />
-          {isBelowMin && <span className="text-xs text-red-500 font-medium">⚠ sous le min.</span>}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5 bg-gray-50 rounded-md px-2 py-1">
-            <span className="text-xs text-gray-500">Qté</span>
-            <span className={`text-sm font-bold ${
-              isBelowMin ? 'text-red-600' : isNearMin ? 'text-yellow-600' : 'text-gray-800'
-            }`}>{stock.quantite_actuelle}</span>
-            {min > 0 && (
-              <>
-                <span className="text-gray-300">|</span>
-                <span className="text-xs text-gray-400">min.</span>
-                {isAdmin && !editing ? (
-                  <button onClick={() => setEditing(true)}
-                    className={`text-xs font-semibold text-gray-600 hover:text-crf-rouge ${saving ? 'opacity-50' : ''}`}>
-                    {min}
-                  </button>
-                ) : isAdmin && editing ? (
-                  <input type="number" min="0" autoFocus
-                    className="w-10 text-xs border border-crf-rouge rounded px-1 py-0.5 text-center"
-                    defaultValue={min}
-                    onBlur={e => saveMin(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && saveMin(e.target.value)}
-                  />
-                ) : (
-                  <span className="text-xs text-gray-500">{min}</span>
-                )}
-              </>
-            )}
-          </div>
-          {isAdmin && (
-            <div className="flex gap-0.5">
-              <button onClick={() => onEdit(stock)} className="btn-icon p-1"><IconEdit size={13} /></button>
-              <button onClick={() => onDelete(stock)} className="btn-icon p-1 hover:text-red-500"><IconTrash size={13} /></button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Détail des lots (masqué si un seul lot sans date ni référence) ── */}
-      {hasUsefulLots && (
-        <div className="rounded-md overflow-hidden border border-gray-100">
-          {/* En-tête tableau */}
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-            <span>Référence</span>
-            <span className="text-right w-10">Qté</span>
-            <span className="text-right w-24">Péremption</span>
-          </div>
-          {/* Lignes */}
-          {lots.map((lot, i) => {
-            const statut = getLotPeremptionStatut(lot.date_peremption);
-            const rowBg = {
-              perime: 'bg-red-50',
-              j7: 'bg-orange-50',
-              j30: 'bg-yellow-50',
-            }[statut] || (i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50');
-            const dateColor = {
-              perime: 'text-red-600 font-semibold',
-              j7: 'text-orange-600 font-semibold',
-              j30: 'text-yellow-700 font-medium',
-            }[statut] || 'text-gray-500';
-            const statusDot = {
-              perime: 'bg-red-500',
-              j7: 'bg-orange-400',
-              j30: 'bg-yellow-400',
-            }[statut];
-            return (
-              <div key={i} className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 ${rowBg} border-t border-gray-100`}>
-                <span className="text-xs text-gray-700 font-mono truncate">
-                  {lot.label || <span className="italic text-gray-400">Lot {i + 1}</span>}
-                </span>
-                <span className="text-xs text-gray-600 font-medium text-right w-10">{lot.quantite}</span>
-                <span className={`text-xs text-right w-24 flex items-center justify-end gap-1.5 ${dateColor}`}>
-                  {lot.date_peremption ? (
-                    <>
-                      {statusDot && <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusDot}`} />}
-                      {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}
-                    </>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PochetteCard({ pochette, lotNom, isAdmin, onEdit, onDelete, onAddStock, onEditStock, onDeleteStock }) {
-  const [open, setOpen] = useState(true);
-  const stockCount = pochette.stocks?.length || 0;
-
-  return (
-    <div className="border border-gray-200 rounded-md overflow-hidden"
-      style={pochette.couleur ? { backgroundColor: pochette.couleur } : {}}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(o => !o)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o); } }}
-        className={`w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5
-                   transition-colors text-left cursor-pointer ${pochette.couleur ? 'hover:brightness-95' : 'bg-white hover:bg-gray-50'}`}
-      >
-        {/* Ligne nom */}
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {open
-            ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
-            : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
-          }
-          <span className="flex-1 text-sm font-medium text-crf-texte">{pochette.nom}</span>
-          {/* Boutons admin visibles desktop dans la ligne nom */}
-          {isAdmin && (
-            <div className="hidden sm:flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-              <button className="btn-icon p-1" onClick={() => onEdit(pochette)}><IconEdit size={13} /></button>
-              <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(pochette)}><IconTrash size={13} /></button>
-            </div>
-          )}
-        </div>
-
-        {/* Ligne count + boutons admin (mobile uniquement) */}
-        <div className="flex items-center gap-2 pl-6 sm:hidden" onClick={e => e.stopPropagation()}>
-          <span className="text-xs text-gray-500 flex-1">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
-          {isAdmin && (
-            <div className="flex gap-1">
-              <button className="btn-icon p-1" onClick={() => onEdit(pochette)}><IconEdit size={13} /></button>
-              <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(pochette)}><IconTrash size={13} /></button>
-            </div>
-          )}
-        </div>
-
-        {/* Count desktop */}
-        <span className="hidden sm:block text-xs text-gray-500 flex-shrink-0">{stockCount} article{stockCount !== 1 ? 's' : ''}</span>
-      </div>
-
-      {open && (
-        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3 space-y-2.5">
-          {pochette.stocks?.length === 0 && !isAdmin && (
-            <p className="text-xs text-gray-400 py-2 text-center">Aucun article.</p>
-          )}
-          {pochette.stocks?.map(stock => (
-            <StockRow key={stock.id} stock={stock} pochetteId={pochette.id} isAdmin={isAdmin}
-              onEdit={onEditStock} onDelete={onDeleteStock} />
-          ))}
-          {isAdmin && (
-            <button
-              onClick={() => onAddStock(pochette)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-md
-                         border-2 border-dashed border-gray-200 text-gray-400 text-xs
-                         hover:border-crf-rouge hover:text-crf-rouge transition-colors"
-            >
-              <IconPlus size={13} />
-              Ajouter un article
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Lot Card ─────────────────────────────────────────────────────────────────
-
-function LotCard({ lot, isAdmin, onEditLot, onDeleteLot, onAddPochette, onEditPochette, onDeletePochette, onShowQR, onAddStock, onEditStock, onDeleteStock }) {
-  const [open, setOpen] = useState(true);
-  const pochetteCount = lot.pochettes?.length || 0;
-
-  return (
-    <div className="card p-0 overflow-hidden" style={lot.couleur ? { backgroundColor: lot.couleur } : {}}>
-      <div className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-5 py-4
-                      border-b border-gray-100/60 cursor-pointer transition-colors ${lot.couleur ? 'hover:brightness-95' : 'hover:bg-gray-50/60'}`}
-        onClick={() => setOpen(o => !o)}
-      >
-        {/* Ligne nom */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          {open
-            ? <IconChevronDown size={18} className="text-gray-400 flex-shrink-0" />
-            : <IconChevronRight size={18} className="text-gray-400 flex-shrink-0" />
-          }
-          {lot.photo_url && (
-            <img src={lot.photo_url} alt={lot.nom}
-              className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-          )}
-          <h2 className="font-semibold text-crf-texte">{lot.nom}</h2>
-        </div>
-
-        {/* Ligne actions (sous le nom sur mobile, aligné à droite sur desktop) */}
-        <div className="flex items-center gap-2 pl-7 sm:pl-0 flex-shrink-0"
-             onClick={e => e.stopPropagation()}>
-          <span className="text-xs text-gray-400 flex-1 sm:flex-none">
-            {pochetteCount} pochette{pochetteCount !== 1 ? 's' : ''}
-          </span>
-          <div className="flex gap-1">
-            <button
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
-                         bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-              onClick={() => onShowQR(lot)}
-            >
-              📱 <span className="hidden sm:inline">QR Code</span>
-            </button>
-            {isAdmin && (
-              <>
-                <button
-                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded
-                             bg-crf-rouge/10 text-crf-rouge hover:bg-crf-rouge/20 transition-colors"
-                  onClick={() => onAddPochette(lot)}
-                >
-                  <IconPlus size={13} />
-                  <span className="hidden sm:inline">Pochette</span>
-                </button>
-                <button className="btn-icon" onClick={() => onEditLot(lot)}>
-                  <IconEdit size={15} />
-                </button>
-                <button className="btn-icon hover:text-red-500" onClick={() => onDeleteLot(lot)}>
-                  <IconTrash size={15} />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {open && (
-        <div className="p-4 space-y-3 bg-gray-50/40">
-          {lot.pochettes?.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">
-              Aucune pochette dans ce lot.
-            </p>
-          ) : (
-            lot.pochettes.map(pochette => (
-              <PochetteCard
-                key={pochette.id}
-                pochette={pochette}
-                lotNom={lot.nom}
-                isAdmin={isAdmin}
-                onEdit={() => onEditPochette(pochette, lot)}
-                onDelete={() => onDeletePochette(pochette, lot)}
-                onAddStock={onAddStock}
-                onEditStock={onEditStock}
-                onDeleteStock={onDeleteStock}
-              />
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+// Composants lots extraits
+import LotCard from '../components/lots/LotCard';
+import LotModal from '../components/lots/LotModal';
+import PochetteModal from '../components/lots/PochetteModal';
+import QRCodeModal from '../components/lots/QRCodeModal';
+import StockPochetteModal from '../components/lots/StockPochetteModal';
+import ConfirmModal from '../components/lots/ConfirmModal';
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function Lots() {
   const { isAdmin } = useAuth();
-  const { lots, loading, error, fetch, createLot, updateLot, deleteLot, createPochette, updatePochette, deletePochette, upsertStockPochette, deleteStockPochette } = useLots();
+  const {
+    lots, loading, error, fetch,
+    createLot, updateLot, deleteLot,
+    createPochette, updatePochette, deletePochette,
+    upsertStockPochette, deleteStockPochette, updateStockMinimum,
+  } = useLots();
   const { articles, fetch: fetchArticles } = useArticles();
+  const [articlesFetched, setArticlesFetched] = useState(false);
 
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState('');
 
-  useEffect(() => { fetch(); fetchArticles(); }, [fetch, fetchArticles]);
+  useEffect(() => { fetch(); }, [fetch]);
 
+  // P2: lazy-load articles seulement quand on ouvre la modale stock
+  const ensureArticles = useCallback(() => {
+    if (!articlesFetched) {
+      fetchArticles();
+      setArticlesFetched(true);
+    }
+  }, [articlesFetched, fetchArticles]);
+
+  // U1: filtrage des lots par recherche
+  const filteredLots = useMemo(() => {
+    if (!search.trim()) return lots;
+    const q = search.toLowerCase();
+    return lots.filter(lot =>
+      lot.nom.toLowerCase().includes(q) ||
+      lot.pochettes?.some(p =>
+        p.nom.toLowerCase().includes(q) ||
+        p.stocks?.some(s => s.article?.nom?.toLowerCase().includes(q))
+      )
+    );
+  }, [lots, search]);
+
+  // U2: compteurs globaux
+  const stats = useMemo(() => {
+    const pochetteCount = lots.reduce((s, l) => s + (l.pochettes?.length || 0), 0);
+    const articleCount = lots.reduce((s, l) =>
+      s + (l.pochettes || []).reduce((s2, p) => s2 + (p.stocks?.length || 0), 0)
+    , 0);
+    return { lotCount: lots.length, pochetteCount, articleCount };
+  }, [lots]);
+
+  // U3: toast ameliore
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 4000);
   }, []);
 
   const closeModal = () => setModal(null);
+
+  // ── Handlers Lot ──────────────────────────────────────────────────────────────
 
   const handleSaveLot = async ({ _pendingPhoto, ...form }) => {
     setSaving(true);
@@ -685,77 +80,115 @@ export default function Lots() {
       if (modal.data) {
         await updateLot(modal.data.id, form);
       } else {
-        // Créer le lot, puis uploader la photo si présente
         const newLot = await createLot(form);
         if (_pendingPhoto && newLot?.id) {
           try {
             const photo_url = await uploadLotPhoto(_pendingPhoto, newLot.id);
             await updateLot(newLot.id, { nom: form.nom, photo_url });
-          } catch { /* ignore */ }
+          } catch (err) {
+            showToast('Lot cree mais erreur upload photo', 'error');
+          }
         }
       }
-      showToast(modal.data ? 'Lot modifié' : 'Lot créé');
+      showToast(modal.data ? 'Lot modifie' : 'Lot cree');
       closeModal();
     } catch (e) {
       showToast(e.response?.data?.error || 'Erreur', 'error');
     } finally { setSaving(false); }
   };
 
-  const handleDeleteLot = async (lot) => {
-    if (!confirm(`Supprimer le lot "${lot.nom}" et toutes ses pochettes ?`)) return;
-    try {
-      await deleteLot(lot.id);
-      showToast('Lot supprimé');
-    } catch (e) {
-      showToast(e.response?.data?.error || 'Erreur', 'error');
-    }
+  // B3: remplacement de confirm() par ConfirmModal
+  const handleDeleteLot = (lot) => {
+    setModal({
+      type: 'confirm',
+      data: {
+        title: 'Supprimer le lot',
+        message: `Supprimer le lot "${lot.nom}" et toutes ses pochettes ? Cette action est irreversible.`,
+        onConfirm: async () => {
+          closeModal();
+          try {
+            await deleteLot(lot.id);
+            showToast('Lot supprime');
+          } catch (e) {
+            showToast(e.response?.data?.error || 'Erreur', 'error');
+          }
+        },
+      },
+    });
   };
+
+  // ── Handlers Pochette ─────────────────────────────────────────────────────────
 
   const handleSavePochette = async (form) => {
     setSaving(true);
     try {
       if (modal.data) await updatePochette(modal.context.lotId, modal.data.id, form);
       else            await createPochette(modal.context.lotId, form);
-      showToast(modal.data ? 'Pochette modifiée' : 'Pochette créée');
+      showToast(modal.data ? 'Pochette modifiee' : 'Pochette creee');
       closeModal();
     } catch (e) {
       showToast(e.response?.data?.error || 'Erreur', 'error');
     } finally { setSaving(false); }
   };
 
-  const handleDeletePochette = async (pochette, lot) => {
-    if (!confirm(`Supprimer la pochette "${pochette.nom}" ?`)) return;
-    try {
-      await deletePochette(lot.id, pochette.id);
-      showToast('Pochette supprimée');
-    } catch (e) {
-      showToast(e.response?.data?.error || 'Erreur', 'error');
-    }
+  const handleDeletePochette = (pochette, lot) => {
+    setModal({
+      type: 'confirm',
+      data: {
+        title: 'Supprimer la pochette',
+        message: `Supprimer la pochette "${pochette.nom}" et tout son contenu ?`,
+        onConfirm: async () => {
+          closeModal();
+          try {
+            await deletePochette(lot.id, pochette.id);
+            showToast('Pochette supprimee');
+          } catch (e) {
+            showToast(e.response?.data?.error || 'Erreur', 'error');
+          }
+        },
+      },
+    });
   };
 
-  const handleSaveStock = async ({ articleId, quantite_actuelle, lots: lotsData }) => {
+  // ── Handlers Stock ────────────────────────────────────────────────────────────
+
+  const handleSaveStock = async ({ articleId, quantite_actuelle, quantite_minimum, lots: lotsData }) => {
     setSaving(true);
     try {
-      await upsertStockPochette(modal.context.pochetteId, articleId, { quantite_actuelle, lots: lotsData });
-      showToast('Stock mis à jour');
+      await upsertStockPochette(modal.context.pochetteId, articleId, {
+        quantite_actuelle,
+        quantite_minimum,
+        lots: lotsData,
+      });
+      showToast('Stock mis a jour');
       closeModal();
     } catch (e) {
       showToast(e.response?.data?.error || 'Erreur', 'error');
     } finally { setSaving(false); }
   };
 
-  const handleDeleteStock = async (stock) => {
+  const handleDeleteStock = (stock) => {
     const pochette = lots.flatMap(l => l.pochettes || []).find(p =>
       (p.stocks || []).some(s => s.id === stock.id)
     );
     if (!pochette) return;
-    if (!confirm(`Retirer "${stock.article.nom}" de la pochette ?`)) return;
-    try {
-      await deleteStockPochette(pochette.id, stock.article_id);
-      showToast('Article retiré');
-    } catch (e) {
-      showToast(e.response?.data?.error || 'Erreur', 'error');
-    }
+
+    setModal({
+      type: 'confirm',
+      data: {
+        title: 'Retirer l\'article',
+        message: `Retirer "${stock.article.nom}" de la pochette ?`,
+        onConfirm: async () => {
+          closeModal();
+          try {
+            await deleteStockPochette(pochette.id, stock.article_id);
+            showToast('Article retire');
+          } catch (e) {
+            showToast(e.response?.data?.error || 'Erreur', 'error');
+          }
+        },
+      },
+    });
   };
 
   return (
@@ -776,52 +209,84 @@ export default function Lots() {
         }
       />
 
+      {/* U2: compteurs globaux + U1: barre de recherche */}
+      {!loading && !error && lots.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <div className="flex gap-3 text-xs text-gray-500">
+            <span>{stats.lotCount} lot{stats.lotCount !== 1 ? 's' : ''}</span>
+            <span className="text-gray-300">|</span>
+            <span>{stats.pochetteCount} pochette{stats.pochetteCount !== 1 ? 's' : ''}</span>
+            <span className="text-gray-300">|</span>
+            <span>{stats.articleCount} article{stats.articleCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex-1 sm:max-w-xs">
+            <input
+              type="search"
+              className="input text-sm py-1.5"
+              placeholder="Rechercher un lot, pochette ou article..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
       {loading && (
         <div className="text-center py-16 text-gray-400">
           <div className="inline-block w-6 h-6 border-2 border-crf-rouge border-t-transparent
                           rounded-full animate-spin mb-3" />
-          <p className="text-sm">Chargement…</p>
+          <p className="text-sm">Chargement...</p>
         </div>
       )}
 
       {error && (
         <div className="card border border-red-200 bg-red-50 text-red-700 text-sm py-4 text-center">
           {error}
-          <button onClick={fetch} className="ml-2 underline">Réessayer</button>
+          <button onClick={fetch} className="ml-2 underline">Reessayer</button>
         </div>
       )}
 
       {!loading && !error && lots.length === 0 && (
         <div className="card text-center py-16 text-gray-400">
-          <p className="text-4xl mb-3">🎒</p>
+          <div className="text-4xl mb-3" aria-hidden="true">🎒</div>
           <p className="text-sm">Aucun lot pour le moment.</p>
           {isAdmin && (
             <button className="btn-primary mt-4" onClick={() => setModal({ type: 'lot' })}>
-              Créer le premier lot
+              Creer le premier lot
             </button>
           )}
         </div>
       )}
 
+      {!loading && !error && filteredLots.length === 0 && lots.length > 0 && (
+        <div className="card text-center py-8 text-gray-400">
+          <p className="text-sm">Aucun resultat pour "{search}"</p>
+        </div>
+      )}
+
       {!loading && !error && (
         <div className="space-y-4">
-          {lots.map(lot => (
+          {/* P4: lots collapsed par defaut quand il y en a beaucoup */}
+          {filteredLots.map((lot, i) => (
             <LotCard
               key={lot.id}
               lot={lot}
               isAdmin={isAdmin}
+              defaultOpen={filteredLots.length <= 3 || i === 0}
               onEditLot={(l) => setModal({ type: 'lot', data: l })}
               onDeleteLot={handleDeleteLot}
               onAddPochette={(l) => setModal({ type: 'pochette', context: { lotId: l.id, lotNom: l.nom } })}
               onEditPochette={(p, l) => setModal({ type: 'pochette', data: p, context: { lotId: l.id, lotNom: l.nom } })}
               onDeletePochette={handleDeletePochette}
               onShowQR={(l) => setModal({ type: 'qrcode', data: l })}
-              onAddStock={(p) => setModal({ type: 'stock', context: { pochetteId: p.id, pochetteNom: p.nom } })}
+              onAddStock={(p) => { ensureArticles(); setModal({ type: 'stock', context: { pochetteId: p.id, pochetteNom: p.nom } }); }}
               onEditStock={(s) => {
+                ensureArticles();
                 const p = lots.flatMap(l => l.pochettes || []).find(po => (po.stocks || []).some(st => st.id === s.id));
                 setModal({ type: 'stock', data: s, context: { pochetteId: p?.id, pochetteNom: p?.nom } });
               }}
               onDeleteStock={handleDeleteStock}
+              onUpdateMinimum={updateStockMinimum}
             />
           ))}
         </div>
@@ -829,21 +294,13 @@ export default function Lots() {
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
       {modal?.type === 'lot' && (
-        <LotModal
-          initial={modal.data}
-          onSave={handleSaveLot}
-          onClose={closeModal}
-          loading={saving}
-        />
+        <LotModal initial={modal.data} onSave={handleSaveLot} onClose={closeModal} loading={saving} />
       )}
 
       {modal?.type === 'pochette' && (
         <PochetteModal
-          initial={modal.data}
-          lotNom={modal.context?.lotNom}
-          onSave={handleSavePochette}
-          onClose={closeModal}
-          loading={saving}
+          initial={modal.data} lotNom={modal.context?.lotNom}
+          onSave={handleSavePochette} onClose={closeModal} loading={saving}
         />
       )}
 
@@ -853,20 +310,34 @@ export default function Lots() {
 
       {modal?.type === 'stock' && (
         <StockPochetteModal
-          pochetteNom={modal.context?.pochetteNom}
-          articles={articles}
-          initial={modal.data}
-          onSave={handleSaveStock}
-          onClose={closeModal}
-          loading={saving}
+          pochetteNom={modal.context?.pochetteNom} articles={articles}
+          initial={modal.data} onSave={handleSaveStock} onClose={closeModal} loading={saving}
         />
       )}
 
-      {/* ── Toast ──────────────────────────────────────────────────── */}
+      {modal?.type === 'confirm' && (
+        <ConfirmModal
+          title={modal.data.title} message={modal.data.message}
+          onConfirm={modal.data.onConfirm} onClose={closeModal}
+        />
+      )}
+
+      {/* U3: Toast ameliore avec fermeture manuelle et role correct */}
       {toast && (
-        <div role="alert" aria-live="polite" className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium
-          ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-card shadow-lg text-sm font-medium flex items-center gap-3
+            ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}
+        >
           {toast.msg}
+          <button
+            onClick={() => setToast(null)}
+            className="text-white/60 hover:text-white text-lg leading-none"
+            aria-label="Fermer la notification"
+          >
+            ×
+          </button>
         </div>
       )}
     </div>

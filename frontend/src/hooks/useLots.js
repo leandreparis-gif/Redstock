@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 
 export function useLots() {
@@ -6,16 +6,27 @@ export function useLots() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // C5: compteur de version pour eviter les race conditions
+  const versionRef = useRef(0);
+
   const fetch = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const version = ++versionRef.current;
     try {
       const { data } = await apiClient.get('/lots');
-      setLots(data);
+      // Ignore les reponses obsoletes
+      if (version === versionRef.current) {
+        setLots(data);
+      }
     } catch (e) {
-      setError(e.response?.data?.error || 'Erreur de chargement');
+      if (version === versionRef.current) {
+        setError(e.response?.data?.error || 'Erreur de chargement');
+      }
     } finally {
-      setLoading(false);
+      if (version === versionRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -70,10 +81,19 @@ export function useLots() {
     await fetch();
   }, [fetch]);
 
+  // BE2: PATCH minimum requis — centralise dans le hook
+  const updateStockMinimum = useCallback(async (pochetteId, articleId, quantiteMinimum) => {
+    const { data } = await apiClient.patch(
+      `/lots/pochettes/${pochetteId}/stock/${articleId}/minimum`,
+      { quantite_minimum: quantiteMinimum }
+    );
+    return data;
+  }, []);
+
   return {
     lots, loading, error, fetch,
     createLot, updateLot, deleteLot,
     createPochette, updatePochette, deletePochette,
-    upsertStockPochette, deleteStockPochette,
+    upsertStockPochette, deleteStockPochette, updateStockMinimum,
   };
 }

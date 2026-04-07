@@ -133,21 +133,48 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
       {/* Article */}
       <div>
         <label className="label">Article *</label>
-        {!initial && (
-          <input
-            className="input text-sm mb-2"
-            placeholder="Rechercher un article..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        {initial ? (
+          <div className="input bg-gray-100 text-sm text-gray-600">{article?.nom} ({article?.categorie})</div>
+        ) : (
+          <>
+            <input
+              className="input text-sm"
+              placeholder="Rechercher un article par nom ou catégorie..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setArticleId(''); }}
+            />
+            {search.trim() && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded-md bg-white shadow-sm">
+                {filteredArticles.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-3 text-center">Aucun article trouvé</p>
+                ) : (
+                  filteredArticles.map(a => (
+                    <button key={a.id} type="button"
+                      onClick={() => { setArticleId(a.id); setSearch(a.nom); }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors ${
+                        articleId === a.id ? 'bg-crf-rouge/5 text-crf-rouge font-medium' : 'text-gray-700'
+                      }`}>
+                      {a.nom} <span className="text-xs text-gray-400">({a.categorie})</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {!search.trim() && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded-md bg-white shadow-sm">
+                {articles.map(a => (
+                  <button key={a.id} type="button"
+                    onClick={() => { setArticleId(a.id); setSearch(a.nom); }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors ${
+                      articleId === a.id ? 'bg-crf-rouge/5 text-crf-rouge font-medium' : 'text-gray-700'
+                    }`}>
+                    {a.nom} <span className="text-xs text-gray-400">({a.categorie})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
-        <select className="select" value={articleId}
-          onChange={e => setArticleId(e.target.value)} disabled={!!initial}>
-          <option value="">Choisir un article…</option>
-          {filteredArticles.map(a => (
-            <option key={a.id} value={a.id}>{a.nom} ({a.categorie})</option>
-          ))}
-        </select>
       </div>
 
       {/* Lots */}

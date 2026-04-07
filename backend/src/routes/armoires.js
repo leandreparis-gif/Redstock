@@ -50,9 +50,12 @@ router.post('/', requireAdmin, async (req, res) => {
   const { nom, description } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
 
+  const ulId = getUlId(req);
+  if (!ulId) return res.status(400).json({ error: 'Unité locale non définie' });
+
   try {
     const armoire = await prisma.armoire.create({
-      data: { nom, description: description || null, unite_locale_id: getUlId(req) },
+      data: { nom, description: description || null, unite_locale_id: ulId },
     });
     res.status(201).json(armoire);
   } catch (err) {

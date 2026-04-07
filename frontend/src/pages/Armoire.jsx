@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
-import PeremptionBadge, { getPeremptionStatut } from '../components/PeremptionBadge';
+// PeremptionBadge remplacé par peremptionHelpers (cohérence lots)
+import { getLotPeremptionStatut, getWorstPeremptionStatut, PEREMPTION_STYLES } from '../components/lots/peremptionHelpers';
 import {
   IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight,
 } from '../components/Icons';
@@ -19,14 +20,11 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('fr-FR');
 }
 
-/** Retourne le pire statut de péremption d'un stock (pour le badge de l'article) */
+/** Retourne le pire statut de péremption d'un stock (pour le badge de l'article).
+ *  Utilise les peremptionHelpers (perime / j7 / j30 / null) pour cohérence avec les lots. */
 function pireStatutStock(lots, estPerimable) {
-  if (!estPerimable || !lots?.length) return 'ok';
-  const ordre = ['perime', 'critique', 'proche', 'ok', 'non_perimable'];
-  return lots.reduce((pire, l) => {
-    const s = getPeremptionStatut(l.date_peremption);
-    return ordre.indexOf(s) < ordre.indexOf(pire) ? s : pire;
-  }, 'ok');
+  if (!estPerimable || !lots?.length) return null;
+  return getWorstPeremptionStatut(lots);
 }
 
 import Modal from '../components/Modal';
@@ -91,13 +89,26 @@ function TiroirModal({ initial, armoireNom, onSave, onClose, loading }) {
 
 function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) {
   const [articleId, setArticleId] = useState(initial?.article?.id || '');
-  const [qte, setQte]             = useState(initial?.quantite_actuelle ?? 0);
-  const [lots, setLots]           = useState(
-    initial?.lots?.length ? initial.lots
+  const [search, setSearch] = useState('');
+  const [lots, setLots] = useState(
+    initial?.lots?.length
+      ? initial.lots.map(l => ({
+          label: l.label || '',
+          date_peremption: l.date_peremption ? String(l.date_peremption).slice(0, 10) : '',
+          quantite: l.quantite ?? 0,
+        }))
       : [{ label: '', date_peremption: '', quantite: 1 }]
   );
 
   const article = articles.find(a => a.id === articleId);
+
+  const filteredArticles = useMemo(() => {
+    if (!search.trim()) return articles;
+    const q = search.toLowerCase();
+    return articles.filter(a =>
+      a.nom.toLowerCase().includes(q) || a.categorie?.toLowerCase().includes(q)
+    );
+  }, [articles, search]);
 
   const addLot = () => setLots(l => [...l, { label: '', date_peremption: '', quantite: 1 }]);
   const removeLot = (i) => setLots(l => l.filter((_, j) => j !== i));
@@ -108,12 +119,12 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
 
   const handleSave = () => {
     const lotsClean = lots
-      .filter(l => l.label.trim())
       .map(l => ({
-        label: l.label.trim(),
+        label: (l.label || '').trim(),
         date_peremption: l.date_peremption || null,
         quantite: parseInt(l.quantite) || 0,
-      }));
+      }))
+      .filter(l => l.label || l.date_peremption || l.quantite > 0);
     onSave({ articleId, quantite_actuelle: totalLots, lots: lotsClean });
   };
 
@@ -122,10 +133,18 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
       {/* Article */}
       <div>
         <label className="label">Article *</label>
+        {!initial && (
+          <input
+            className="input text-sm mb-2"
+            placeholder="Rechercher un article..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        )}
         <select className="select" value={articleId}
           onChange={e => setArticleId(e.target.value)} disabled={!!initial}>
           <option value="">Choisir un article…</option>
-          {articles.map(a => (
+          {filteredArticles.map(a => (
             <option key={a.id} value={a.id}>{a.nom} ({a.categorie})</option>
           ))}
         </select>
@@ -151,12 +170,12 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
             {lots.map((lot, i) => (
               <div key={i} className="flex gap-2 items-start bg-gray-50 rounded-md p-2">
                 <div className="flex-1 space-y-1">
-                  <input className="input text-xs py-1" placeholder="Référence lot *"
+                  <input className="input text-xs py-1" placeholder="Référence lot (optionnel)"
                     value={lot.label} onChange={e => updateLot(i, 'label', e.target.value)} />
                   <div className="flex gap-2">
                     {article?.est_perimable && (
                       <input type="date" className="input text-xs py-1 flex-1"
-                        value={lot.date_peremption}
+                        value={lot.date_peremption || ''}
                         onChange={e => updateLot(i, 'date_peremption', e.target.value)} />
                     )}
                     <input type="number" min="0" className="input text-xs py-1 w-20"
@@ -165,7 +184,8 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
                   </div>
                 </div>
                 {lots.length > 1 && (
-                  <button onClick={() => removeLot(i)} className="text-gray-300 hover:text-red-500 mt-1">
+                  <button onClick={() => removeLot(i)} className="text-gray-300 hover:text-red-500 mt-1"
+                    aria-label={`Retirer le lot ${i + 1}`}>
                     ×
                   </button>
                 )}
@@ -191,21 +211,43 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
   );
 }
 
-// ─── Composant lot individuel ─────────────────────────────────────────────────
+// ─── Tableau de lots (style StockRow pochettes) ──────────────────────────────
 
-function LotRow({ lot }) {
-  const statut = getPeremptionStatut(lot.date_peremption);
-  const rowCls = (statut === 'perime' || statut === 'critique')
-    ? 'bg-red-50' : statut === 'proche' ? 'bg-orange-50' : '';
+function LotsTable({ lots }) {
+  const hasUsefulLots = lots.length > 1 || (lots.length === 1 && (lots[0].date_peremption || lots[0].label));
+  if (!hasUsefulLots) return null;
 
   return (
-    <div className={`flex items-center gap-3 text-xs px-3 py-1.5 rounded ${rowCls}`}>
-      <span className="font-mono text-gray-500 truncate min-w-0 flex-1">{lot.label}</span>
-      <span className="text-gray-600 flex-shrink-0">×{lot.quantite}</span>
-      {lot.date_peremption
-        ? <PeremptionBadge date={lot.date_peremption} />
-        : <span className="text-gray-400">—</span>
-      }
+    <div className="rounded-md overflow-hidden border border-gray-100">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+        <span>Référence</span>
+        <span className="text-right w-10">Qté</span>
+        <span className="text-right w-24">Péremption</span>
+      </div>
+      {lots.map((lot, i) => {
+        const statut = getLotPeremptionStatut(lot.date_peremption);
+        const s = statut ? PEREMPTION_STYLES[statut] : null;
+        const rowBg = s ? s.row : (i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50');
+        const dateColor = s ? s.date : 'text-gray-500';
+        return (
+          <div key={i} className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 ${rowBg} border-t border-gray-100`}>
+            <span className="text-xs text-gray-700 font-mono truncate">
+              {lot.label || <span className="italic text-gray-400">Lot {i + 1}</span>}
+            </span>
+            <span className="text-xs text-gray-600 font-medium text-right w-10">{lot.quantite}</span>
+            <span className={`text-xs text-right w-24 flex items-center justify-end gap-1.5 ${dateColor}`}>
+              {lot.date_peremption ? (
+                <>
+                  {s?.dot && <span className={`inline-block w-1.5 h-1.5 rounded-full ${s.dot}`} />}
+                  {new Date(lot.date_peremption).toLocaleDateString('fr-FR')}
+                </>
+              ) : (
+                <span className="text-gray-300">—</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -252,13 +294,24 @@ function MinEditor({ article, isAdmin }) {
   );
 }
 
+function ArticlePeremptionBadge({ lots }) {
+  const statut = getWorstPeremptionStatut(lots);
+  if (!statut) return null;
+  const style = PEREMPTION_STYLES[statut];
+  return (
+    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${style.bg}`}>
+      {style.label}
+    </span>
+  );
+}
+
 function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted }) {
   const { article, quantite_actuelle, lots } = stock;
   const qMin = article.quantite_min || 0;
   const sousMin = quantite_actuelle < qMin;
   const procheMin = !sousMin && qMin > 0 && quantite_actuelle <= Math.max(qMin + 2, Math.ceil(qMin * 1.2));
-  const pire    = pireStatutStock(lots, article.est_perimable);
-  const urgent  = pire === 'perime' || pire === 'critique';
+  const worstStatut = getWorstPeremptionStatut(lots);
+  const urgent = worstStatut === 'perime' || worstStatut === 'j7';
   const [open, setOpen] = useState(urgent || highlighted);
   const rowRef = useRef(null);
 
@@ -297,15 +350,8 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
             {quantite_actuelle}
           </span>
 
-          {article.est_perimable && <PeremptionBadge date={
-            lots?.reduce((worst, l) => {
-              if (!worst) return l.date_peremption;
-              const s = getPeremptionStatut(l.date_peremption);
-              const w = getPeremptionStatut(worst);
-              const ord = ['perime','critique','proche','ok'];
-              return ord.indexOf(s) < ord.indexOf(w) ? l.date_peremption : worst;
-            }, null)
-          } />}
+          {article.est_perimable && <ArticlePeremptionBadge lots={lots} />}
+          {sousMin && <span className="text-xs text-red-500 font-medium">Sous le min.</span>}
 
           {/* MinEditor caché sur mobile — affiché dans la section expansée */}
           <div className="hidden sm:block">
@@ -339,8 +385,8 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
             <MinEditor article={article} isAdmin={isAdmin} />
           </div>
           {lots?.length > 0 && (
-            <div className="border-t border-gray-100 bg-gray-50/50 px-2 py-1.5 space-y-0.5">
-              {lots.map((lot, i) => <LotRow key={i} lot={lot} />)}
+            <div className="border-t border-gray-100 bg-gray-50/50 px-2 py-1.5">
+              <LotsTable lots={lots} />
             </div>
           )}
         </div>
@@ -359,7 +405,7 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
   const [open, setOpen] = useState(true);
   const hasProbleme = tiroir.stocks?.some(s => {
     const p = pireStatutStock(s.lots, s.article.est_perimable);
-    return p === 'perime' || p === 'critique'
+    return p === 'perime' || p === 'j7'
       || s.quantite_actuelle < s.article.quantite_min;
   });
 

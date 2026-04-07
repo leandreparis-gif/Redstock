@@ -9,7 +9,8 @@ const resend = process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'dev
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const MAIL_FROM = process.env.MAIL_FROM || 'noreply@redstock.app';
+const MAIL_FROM = process.env.MAIL_FROM || 'contact@redstock.app';
+const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || 'contact@redstock.app';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const LOGO_URL = `${FRONTEND_URL}/logo-crf.svg`;
 
@@ -66,7 +67,7 @@ function emailLayout({ title, preheader, accentColor = '#E30613', body }) {
             RedStock · Croix-Rouge française
           </p>
           <p style="margin:4px 0 0;font-size:11px;color:#d4d4d8;line-height:1.5">
-            Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+            <a href="mailto:${MAIL_REPLY_TO}?subject=unsubscribe" style="color:#a1a1aa;text-decoration:underline">Se désinscrire</a>
           </p>
         </td></tr>
 
@@ -101,6 +102,24 @@ function ctaButton(text, href, color = '#E30613') {
 
 // ─── ENVOI ────────────────────────────────────────────────────────────────────
 
+function stripHtmlToText(html) {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<\/td>/gi, ' | ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function send({ to, subject, html }) {
   if (!resend) {
     console.log('[mailService] (dev) Email non envoyé — RESEND_API_KEY non configurée');
@@ -108,7 +127,18 @@ async function send({ to, subject, html }) {
     return;
   }
   try {
-    const { data, error } = await resend.emails.send({ from: MAIL_FROM, to, subject, html });
+    const { data, error } = await resend.emails.send({
+      from: MAIL_FROM,
+      to,
+      subject,
+      replyTo: MAIL_REPLY_TO,
+      html,
+      text: stripHtmlToText(html),
+      headers: {
+        'List-Unsubscribe': `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    });
     if (error) {
       console.error(`[mailService] Erreur Resend:`, JSON.stringify(error));
       return;
@@ -242,7 +272,7 @@ async function notifPretUniforme({ uniformeNom, taille, beneficiaire, qualificat
           Bonjour <strong>${escapeHtml(beneficiaire)}</strong>,
         </p>
         <p style="margin:0 0 20px;font-size:14px;color:#52525b;line-height:1.6">
-          Un uniforme vous a été prêté. Merci de le retourner en bon état à la date prévue.
+          Un uniforme vous a été prêté. Merci de le nettoyer et de le retourner en bon état à la date prévue.
         </p>
         ${infoTable([
           ['Uniforme', `<strong>${escapeHtml(uniformeNom)}</strong> — ${escapeHtml(taille)}`],

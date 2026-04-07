@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../components/PageHeader';
-import { IconPlus, IconEdit, IconTrash } from '../components/Icons';
+import { IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
 import { useUniformes } from '../hooks/useUniformes';
 
@@ -263,6 +263,115 @@ function UniformeCard({ uniforme, isAdmin, onEdit, onDelete, onPret, onAttributi
   );
 }
 
+// ─── Sections repliables ─────────────────────────────────────────────────────
+
+function CollapsibleSections({ stockParType, pretés, attribués, uniformes, isAdmin, setModal, handleDeleteUniforme }) {
+  const [openStock, setOpenStock] = useState(true);
+  const [openPrets, setOpenPrets] = useState(true);
+  const [openAttrib, setOpenAttrib] = useState(true);
+  const [openTypes, setOpenTypes] = useState({});
+
+  const toggleType = (label) =>
+    setOpenTypes(o => ({ ...o, [label]: o[label] === undefined ? false : !o[label] }));
+
+  const cardProps = (u) => ({
+    key: u.id,
+    uniforme: u,
+    isAdmin,
+    onEdit: (u) => setModal({ type: 'uniforme', data: u }),
+    onDelete: handleDeleteUniforme,
+    onPret: (u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' }),
+    onAttribution: (u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' }),
+    onRetour: (u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' }),
+  });
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Stock disponible ── */}
+      <div className="card p-0 overflow-hidden">
+        <button onClick={() => setOpenStock(o => !o)}
+          className="w-full flex items-center gap-3 px-5 py-4 border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-left">
+          {openStock ? <IconChevronDown size={18} className="text-gray-400" /> : <IconChevronRight size={18} className="text-gray-400" />}
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
+          <h2 className="text-base font-semibold text-crf-texte">Stock disponible</h2>
+          <span className="text-gray-400 font-normal text-sm">({uniformes.filter(u => u.statut === 'DISPONIBLE').length})</span>
+        </button>
+
+        {openStock && (
+          <div className="p-4 space-y-3 bg-gray-50/40">
+            {stockParType.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">Aucun uniforme disponible.</p>
+            ) : (
+              stockParType.map(({ label, items }) => {
+                const isOpen = openTypes[label] !== false;
+                return (
+                  <div key={label} className="border border-gray-200 rounded-card overflow-hidden">
+                    <button onClick={() => toggleType(label)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 transition-colors text-left">
+                      {isOpen ? <IconChevronDown size={14} className="text-gray-400" /> : <IconChevronRight size={14} className="text-gray-400" />}
+                      <span className="text-sm font-semibold text-crf-texte">{label}</span>
+                      <span className="text-xs text-gray-400">({items.length})</span>
+                    </button>
+                    {isOpen && (
+                      <div className="p-3 border-t border-gray-100 bg-white">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {items.map(u => <UniformeCard {...cardProps(u)} />)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Prêtés ── */}
+      {pretés.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <button onClick={() => setOpenPrets(o => !o)}
+            className="w-full flex items-center gap-3 px-5 py-4 border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-left">
+            {openPrets ? <IconChevronDown size={18} className="text-gray-400" /> : <IconChevronRight size={18} className="text-gray-400" />}
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-crf-texte">Prêtés</h2>
+            <span className="text-gray-400 font-normal text-sm">({pretés.length})</span>
+          </button>
+          {openPrets && (
+            <div className="p-4 bg-gray-50/40">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {pretés.map(u => <UniformeCard {...cardProps(u)} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Attribués ── */}
+      {attribués.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <button onClick={() => setOpenAttrib(o => !o)}
+            className="w-full flex items-center gap-3 px-5 py-4 border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-left">
+            {openAttrib ? <IconChevronDown size={18} className="text-gray-400" /> : <IconChevronRight size={18} className="text-gray-400" />}
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-crf-texte">Attribués</h2>
+            <span className="text-gray-400 font-normal text-sm">({attribués.length})</span>
+          </button>
+          {openAttrib && (
+            <div className="p-4 bg-gray-50/40">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {attribués.map(u => <UniformeCard {...cardProps(u)} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function Uniformes() {
@@ -373,84 +482,15 @@ export default function Uniformes() {
       )}
 
       {!loading && !error && uniformes.length > 0 && (
-        <div className="space-y-8">
-
-          {/* ── Stock disponible ── */}
-          <div>
-            <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-              Stock disponible
-              <span className="text-gray-400 font-normal text-sm">({uniformes.filter(u => u.statut === 'DISPONIBLE').length})</span>
-            </h2>
-            {stockParType.length === 0 ? (
-              <p className="text-sm text-gray-400">Aucun uniforme disponible.</p>
-            ) : (
-              <div className="space-y-4">
-                {stockParType.map(({ label, items }) => (
-                  <div key={label}>
-                    <h3 className="section-label mb-2">{label} <span className="text-gray-400">({items.length})</span></h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {items.map(uniforme => (
-                        <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
-                          onEdit={(u) => setModal({ type: 'uniforme', data: u })}
-                          onDelete={handleDeleteUniforme}
-                          onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
-                          onAttribution={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' })}
-                          onRetour={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Prêtés ── */}
-          {pretés.length > 0 && (
-            <div>
-              <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-                Prêtés
-                <span className="text-gray-400 font-normal text-sm">({pretés.length})</span>
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pretés.map(uniforme => (
-                  <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
-                    onEdit={(u) => setModal({ type: 'uniforme', data: u })}
-                    onDelete={handleDeleteUniforme}
-                    onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
-                    onAttribution={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' })}
-                    onRetour={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Attribués ── */}
-          {attribués.length > 0 && (
-            <div>
-              <h2 className="text-base font-semibold text-crf-texte mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
-                Attribués
-                <span className="text-gray-400 font-normal text-sm">({attribués.length})</span>
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {attribués.map(uniforme => (
-                  <UniformeCard key={uniforme.id} uniforme={uniforme} isAdmin={isAdmin}
-                    onEdit={(u) => setModal({ type: 'uniforme', data: u })}
-                    onDelete={handleDeleteUniforme}
-                    onPret={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'PRET' })}
-                    onAttribution={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'ATTRIBUTION' })}
-                    onRetour={(u) => setModal({ type: 'mouvement', data: u, mouvementType: 'RETOUR' })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-        </div>
+        <CollapsibleSections
+          stockParType={stockParType}
+          pretés={pretés}
+          attribués={attribués}
+          uniformes={uniformes}
+          isAdmin={isAdmin}
+          setModal={setModal}
+          handleDeleteUniforme={handleDeleteUniforme}
+        />
       )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}

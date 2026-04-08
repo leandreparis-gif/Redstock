@@ -18,6 +18,8 @@ const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const uniteLocaleRoutes = require('./routes/uniteLocale');
 const planningControleRoutes = require('./routes/planningControle');
+const peremptionsRoutes = require('./routes/peremptions');
+const commandesRoutes = require('./routes/commandes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -99,6 +101,8 @@ app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/unite-locale', uniteLocaleRoutes);
 app.use('/api/planning-controle', planningControleRoutes);
+app.use('/api/peremptions', peremptionsRoutes);
+app.use('/api/commandes', commandesRoutes);
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

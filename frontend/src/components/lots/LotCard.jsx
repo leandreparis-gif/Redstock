@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight } from '../Icons';
 import PochetteCard from './PochetteCard';
 
-export default function LotCard({ lot, isAdmin, defaultOpen = false, onEditLot, onDeleteLot, onAddPochette, onEditPochette, onDeletePochette, onShowQR, onAddStock, onEditStock, onDeleteStock, onUpdateMinimum }) {
+export default function LotCard({ lot, isAdmin, defaultOpen = false, highlightArticleId, onEditLot, onDeleteLot, onAddPochette, onEditPochette, onDeletePochette, onShowQR, onAddStock, onEditStock, onDeleteStock, onUpdateMinimum }) {
   const [open, setOpen] = useState(defaultOpen);
   const pochetteCount = lot.pochettes?.length || 0;
 
@@ -80,6 +80,7 @@ export default function LotCard({ lot, isAdmin, defaultOpen = false, onEditLot, 
                 key={pochette.id}
                 pochette={pochette}
                 isAdmin={isAdmin}
+                highlightArticleId={highlightArticleId}
                 onEdit={() => onEditPochette(pochette, lot)}
                 onDelete={() => onDeletePochette(pochette, lot)}
                 onAddStock={onAddStock}

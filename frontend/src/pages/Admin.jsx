@@ -431,15 +431,23 @@ function AdminUtilisateurs() {
 // ─── Section Logs ─────────────────────────────────────────────────────────────
 
 const ACTION_LABELS = {
-  LOGIN:           { label: 'Connexion',         color: 'bg-blue-100 text-blue-700' },
-  CONTROLE:        { label: 'Contrôle',          color: 'bg-green-100 text-green-700' },
-  CONTROLE_QR:     { label: 'Contrôle QR',      color: 'bg-teal-100 text-teal-700' },
-  USER_CREATE:     { label: 'Compte créé',      color: 'bg-purple-100 text-purple-700' },
-  USER_DELETE:     { label: 'Compte supprimé',  color: 'bg-red-100 text-red-700' },
-  STOCK_UPDATE:    { label: 'Stock mis à jour', color: 'bg-orange-100 text-orange-700' },
-  PLANNING_CREATE: { label: 'Planning créé',    color: 'bg-indigo-100 text-indigo-700' },
-  PLANNING_UPDATE: { label: 'Planning modifié', color: 'bg-indigo-100 text-indigo-700' },
-  PLANNING_DELETE: { label: 'Planning supprimé', color: 'bg-red-100 text-red-700' },
+  LOGIN:             { label: 'Connexion',           color: 'bg-blue-100 text-blue-700' },
+  CONTROLE:          { label: 'Controle',            color: 'bg-green-100 text-green-700' },
+  CONTROLE_QR:       { label: 'Controle QR',         color: 'bg-teal-100 text-teal-700' },
+  USER_CREATE:       { label: 'Compte cree',         color: 'bg-purple-100 text-purple-700' },
+  USER_DELETE:       { label: 'Compte supprime',     color: 'bg-red-100 text-red-700' },
+  STOCK_UPDATE:      { label: 'Stock mis a jour',    color: 'bg-orange-100 text-orange-700' },
+  PLANNING_CREATE:   { label: 'Planning cree',       color: 'bg-indigo-100 text-indigo-700' },
+  PLANNING_UPDATE:   { label: 'Planning modifie',    color: 'bg-indigo-100 text-indigo-700' },
+  PLANNING_DELETE:   { label: 'Planning supprime',   color: 'bg-red-100 text-red-700' },
+  ARTICLE_CREATE:    { label: 'Article cree',        color: 'bg-emerald-100 text-emerald-700' },
+  ARTICLE_DELETE:    { label: 'Article supprime',     color: 'bg-red-100 text-red-700' },
+  UNIFORME_PRET:     { label: 'Uniforme prete',      color: 'bg-cyan-100 text-cyan-700' },
+  UNIFORME_RETOUR:   { label: 'Uniforme retour',     color: 'bg-cyan-100 text-cyan-700' },
+  COMMANDE_CREATE:   { label: 'Commande creee',      color: 'bg-amber-100 text-amber-700' },
+  COMMANDE_VALIDER:  { label: 'Commande validee',    color: 'bg-blue-100 text-blue-700' },
+  COMMANDE_RECEVOIR: { label: 'Commande recue',      color: 'bg-green-100 text-green-700' },
+  COMMANDE_ANNULER:  { label: 'Commande annulee',    color: 'bg-red-100 text-red-700' },
 };
 
 function AdminLogs() {
@@ -447,20 +455,47 @@ function AdminLogs() {
   const [total, setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage]     = useState(1);
-  const [filter, setFilter] = useState('');
   const limit = 50;
+
+  // Filtres avances
+  const [selectedActions, setSelectedActions] = useState([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo]     = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [users, setUsers] = useState([]);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const actionMenuRef = useRef(null);
+
+  // Charger les utilisateurs distincts
+  useEffect(() => {
+    apiClient.get('/logs/users').then(r => setUsers(r.data)).catch(() => {});
+  }, []);
+
+  // Fermer le dropdown actions au clic exterieur
+  useEffect(() => {
+    const handler = (e) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target)) setShowActionMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit, page });
-      if (filter) params.set('action', filter);
-      const { data } = await apiClient.get(`/logs?${params}`);
+      const params = { limit, page };
+      if (selectedActions.length > 0) params.actions = selectedActions.join(',');
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
+      if (userFilter) params.user = userFilter;
+      if (searchText) params.search = searchText;
+      const { data } = await apiClient.get('/logs', { params });
       setLogs(data.logs);
       setTotal(data.total);
     } catch { setLogs([]); }
     finally { setLoading(false); }
-  }, [page, filter]);
+  }, [page, selectedActions, dateFrom, dateTo, userFilter, searchText]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -469,31 +504,121 @@ function AdminLogs() {
     hour: '2-digit', minute: '2-digit',
   });
 
-  const actions = Object.keys(ACTION_LABELS);
+  const allActions = Object.keys(ACTION_LABELS);
   const totalPages = Math.ceil(total / limit);
+
+  const toggleAction = (action) => {
+    setSelectedActions(prev =>
+      prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]
+    );
+    setPage(1);
+  };
+
+  const exportCSV = async () => {
+    try {
+      const params = {};
+      if (selectedActions.length > 0) params.actions = selectedActions.join(',');
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
+      if (userFilter) params.user = userFilter;
+      if (searchText) params.search = searchText;
+      const response = await apiClient.get('/logs/export', { params, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'journal_activite.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export CSV error', err);
+    }
+  };
+
+  const rangeStart = (page - 1) * limit + 1;
+  const rangeEnd = Math.min(page * limit, total);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <p className="text-sm text-gray-500">{total} entrée{total !== 1 ? 's' : ''}</p>
-        <div className="flex gap-2">
-          <select className="select text-sm py-1.5" value={filter}
-            onChange={e => { setFilter(e.target.value); setPage(1); }}>
-            <option value="">Toutes les actions</option>
-            {actions.map(a => (
-              <option key={a} value={a}>{ACTION_LABELS[a]?.label || a}</option>
+      {/* Barre de filtres */}
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        {/* Multi-select actions */}
+        <div className="relative" ref={actionMenuRef}>
+          <label className="label text-xs mb-1 block">Actions</label>
+          <button className="select text-sm py-1.5 min-w-[160px] text-left"
+            onClick={() => setShowActionMenu(v => !v)}>
+            {selectedActions.length === 0 ? 'Toutes' : `${selectedActions.length} filtre${selectedActions.length > 1 ? 's' : ''}`}
+          </button>
+          {showActionMenu && (
+            <div className="absolute z-20 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-56 max-h-64 overflow-y-auto">
+              <button className="text-xs text-crf-rouge mb-1 px-2 hover:underline"
+                onClick={() => { setSelectedActions([]); setPage(1); }}>
+                Tout effacer
+              </button>
+              {allActions.map(a => (
+                <label key={a} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                  <input type="checkbox" checked={selectedActions.includes(a)}
+                    onChange={() => toggleAction(a)}
+                    className="rounded border-gray-300 text-crf-rouge focus:ring-crf-rouge" />
+                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${ACTION_LABELS[a].color}`}>
+                    {ACTION_LABELS[a].label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Date range */}
+        <div>
+          <label className="label text-xs mb-1 block">Du</label>
+          <input type="date" className="input text-sm py-1.5" value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setPage(1); }} />
+        </div>
+        <div>
+          <label className="label text-xs mb-1 block">Au</label>
+          <input type="date" className="input text-sm py-1.5" value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setPage(1); }} />
+        </div>
+
+        {/* User filter */}
+        <div>
+          <label className="label text-xs mb-1 block">Utilisateur</label>
+          <select className="select text-sm py-1.5" value={userFilter}
+            onChange={e => { setUserFilter(e.target.value); setPage(1); }}>
+            <option value="">Tous</option>
+            {users.map(u => (
+              <option key={u.user_login} value={u.user_login}>
+                {u.user_prenom} ({u.user_login})
+              </option>
             ))}
           </select>
-          <button className="btn-secondary text-sm py-1.5" onClick={fetchLogs}>↻ Actualiser</button>
+        </div>
+
+        {/* Search text */}
+        <div>
+          <label className="label text-xs mb-1 block">Recherche</label>
+          <input type="text" className="input text-sm py-1.5" placeholder="Rechercher dans details..."
+            value={searchText}
+            onChange={e => { setSearchText(e.target.value); setPage(1); }} />
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 ml-auto self-end">
+          <button className="btn-secondary text-sm py-1.5" onClick={exportCSV}>Export CSV</button>
+          <button className="btn-secondary text-sm py-1.5" onClick={fetchLogs}>Actualiser</button>
         </div>
       </div>
 
+      {/* Info resultat */}
+      <p className="text-sm text-gray-500 mb-3">
+        {total === 0 ? 'Aucun resultat' : `Affichage ${rangeStart}-${rangeEnd} sur ${total} resultat${total !== 1 ? 's' : ''}`}
+      </p>
+
       {loading ? (
-        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
+        <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement...</p></div>
       ) : logs.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
-          <p className="text-3xl mb-2">📋</p>
-          <p className="text-sm">Aucun log pour le moment.</p>
+          <p className="text-sm">Aucun log correspondant aux filtres.</p>
         </div>
       ) : (
         <>
@@ -523,7 +648,7 @@ function AdminLogs() {
                   <th>Date</th>
                   <th>Action</th>
                   <th>Utilisateur</th>
-                  <th>Détails</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -556,10 +681,10 @@ function AdminLogs() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-4">
           <button className="btn-secondary text-sm py-1" disabled={page === 1}
-            onClick={() => setPage(p => p - 1)}>← Précédent</button>
+            onClick={() => setPage(p => p - 1)}>Precedent</button>
           <span className="text-sm text-gray-500">Page {page} / {totalPages}</span>
           <button className="btn-secondary text-sm py-1" disabled={page === totalPages}
-            onClick={() => setPage(p => p + 1)}>Suivant →</button>
+            onClick={() => setPage(p => p + 1)}>Suivant</button>
         </div>
       )}
     </div>

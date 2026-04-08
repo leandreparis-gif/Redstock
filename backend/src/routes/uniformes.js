@@ -8,6 +8,7 @@ const { requireAdmin } = require('../middleware/role');
 const { notifPretUniforme, notifRetourUniforme } = require('../services/mailService');
 
 const { getUlFilter, getUlId } = require('../utils/resolveUL');
+const logAction = require('../utils/logAction');
 
 const router = express.Router();
 
@@ -226,6 +227,13 @@ router.post('/:id/pret', async (req, res) => {
       }
     }
 
+    logAction(prisma, {
+      uniteLocaleId: uniforme.unite_locale_id,
+      action: 'UNIFORME_PRET',
+      details: `Pret uniforme "${uniforme.nom}" (${uniforme.taille}) a ${beneficiaire_prenom}`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
+
     res.status(201).json(mouvement);
   } catch (err) {
     console.error('[uniformes/pret]', err);
@@ -353,6 +361,13 @@ router.post('/:id/retour', async (req, res) => {
         console.error('[uniformes/retour] Erreur envoi email:', mailErr.message);
       }
     }
+
+    logAction(prisma, {
+      uniteLocaleId: uniforme.unite_locale_id,
+      action: 'UNIFORME_RETOUR',
+      details: `Retour uniforme "${uniforme.nom}" (${uniforme.taille}) par ${mouvementActif?.beneficiaire_prenom || 'Inconnu'}`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
 
     res.json({ message: 'Retour enregistré' });
   } catch (err) {

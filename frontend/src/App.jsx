@@ -8,7 +8,9 @@ const Armoire     = React.lazy(() => import('./pages/Armoire'));
 const Lots        = React.lazy(() => import('./pages/Lots'));
 const ControleLot = React.lazy(() => import('./pages/ControleLot'));
 const Uniformes   = React.lazy(() => import('./pages/Uniformes'));
-const Reporting   = React.lazy(() => import('./pages/Reporting'));
+const Reporting    = React.lazy(() => import('./pages/Reporting'));
+const Peremptions  = React.lazy(() => import('./pages/Peremptions'));
+const Commandes    = React.lazy(() => import('./pages/Commandes'));
 const Admin       = React.lazy(() => import('./pages/Admin'));
 const Profil          = React.lazy(() => import('./pages/Profil'));
 const ForgotPassword  = React.lazy(() => import('./pages/ForgotPassword'));
@@ -44,8 +46,10 @@ export default function App() {
               <Route path="/dashboard"  element={<Dashboard />} />
               <Route path="/armoires"   element={<Armoire />} />
               <Route path="/lots"       element={<Lots />} />
-              <Route path="/uniformes"  element={<Uniformes />} />
-              <Route path="/reporting"  element={<Reporting />} />
+              <Route path="/uniformes"    element={<Uniformes />} />
+              <Route path="/peremptions"  element={<Peremptions />} />
+              <Route path="/commandes"    element={<Commandes />} />
+              <Route path="/reporting"    element={<Reporting />} />
               <Route path="/profil"    element={<Profil />} />
 
               <Route element={<RequireAdmin />}>

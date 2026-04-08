@@ -13,7 +13,7 @@ function PeremptionBadge({ lots }) {
   );
 }
 
-export default function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete, onUpdateMinimum }) {
+export default function StockRow({ stock, pochetteId, isAdmin, highlighted, onEdit, onDelete, onUpdateMinimum }) {
   const [min, setMin] = useState(stock.quantite_minimum ?? 0);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,7 +39,7 @@ export default function StockRow({ stock, pochetteId, isAdmin, onEdit, onDelete,
   const hasUsefulLots = lots.length > 1 || (lots.length === 1 && (lots[0].date_peremption || lots[0].label));
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${hasUsefulLots ? 'p-3 space-y-2.5' : 'px-3 py-2'}`}>
+    <div className={`bg-white rounded-lg border ${highlighted ? 'border-crf-rouge ring-2 ring-crf-rouge/20' : 'border-gray-200'} ${hasUsefulLots ? 'p-3 space-y-2.5' : 'px-3 py-2'}`}>
       {/* En-tete article */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">

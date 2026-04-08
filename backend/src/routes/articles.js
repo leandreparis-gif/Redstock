@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
 const { getUlFilter, getUlId } = require('../utils/resolveUL');
+const logAction = require('../utils/logAction');
 
 const router = express.Router();
 
@@ -106,6 +107,14 @@ router.post('/', requireAdmin, async (req, res) => {
         unite_locale_id: getUlId(req),
       },
     });
+
+    logAction(prisma, {
+      uniteLocaleId: getUlId(req),
+      action: 'ARTICLE_CREATE',
+      details: `Article cree : "${nom}" (${categorie})`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
+
     res.status(201).json(article);
   } catch (err) {
     if (err.code === 'P2002') {
@@ -160,6 +169,14 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Article introuvable' });
 
     await prisma.article.delete({ where: { id: req.params.id } });
+
+    logAction(prisma, {
+      uniteLocaleId: existing.unite_locale_id,
+      action: 'ARTICLE_DELETE',
+      details: `Article supprime : "${existing.nom}"`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
+
     res.json({ message: 'Article supprimé' });
   } catch (err) {
     if (err.code === 'P2003') {

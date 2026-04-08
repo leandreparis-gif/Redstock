@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/role');
 
 const { getUlFilter, getUlId } = require('../utils/resolveUL');
+const logAction = require('../utils/logAction');
 
 const router = express.Router();
 
@@ -215,6 +216,14 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
         lots: lots ?? [],
       },
     });
+
+    logAction(prisma, {
+      uniteLocaleId: tiroir.armoire.unite_locale_id,
+      action: 'STOCK_UPDATE',
+      details: `Stock tiroir mis a jour — article ${req.params.articleId}, qte: ${quantite_actuelle ?? 0}`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
+
     res.json(stock);
   } catch (err) {
     console.error('[stocks-tiroir/PUT]', err);

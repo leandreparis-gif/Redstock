@@ -29,6 +29,7 @@ model UniteLocale {
   stockPochettes   StockPochette[]
   logs             Log[]
   planningsControle PlanningControle[]
+  commandes        Commande[]
 }
 
 // ─── JOURNAL D'ACTIVITÉ ───────────────────────────────────────────────────────
@@ -60,6 +61,9 @@ model User {
 
   unite_locale_id String?
   unite_locale    UniteLocale?  @relation(fields: [unite_locale_id], references: [id])
+
+  commandes_creees   Commande[] @relation("commandes_creees")
+  commandes_validees Commande[] @relation("commandes_validees")
 }
 
 enum Qualification {
@@ -92,6 +96,7 @@ model Article {
   stockTiroirs   StockTiroir[]
   stockPochettes StockPochette[]
   alertes        Alerte[]
+  commandes      Commande[]
 }
 
 // ─── ARMOIRE & TIROIR ─────────────────────────────────────────────────────────
@@ -329,4 +334,35 @@ enum UnitePeriodicite {
   JOURS
   SEMAINES
   MOIS
+}
+
+// ─── COMMANDE (REAPPROVISIONNEMENT) ──────────────────────────────────────────
+model Commande {
+  id                String         @id @default(cuid())
+  quantite_demandee Int
+  statut            StatutCommande @default(BROUILLON)
+  remarques         String?
+  date_creation     DateTime       @default(now())
+  date_validation   DateTime?
+  date_reception    DateTime?
+
+  article_id      String
+  article         Article    @relation(fields: [article_id], references: [id])
+
+  created_by_id   String
+  created_by      User       @relation("commandes_creees", fields: [created_by_id], references: [id])
+
+  validated_by_id String?
+  validated_by    User?      @relation("commandes_validees", fields: [validated_by_id], references: [id])
+
+  unite_locale_id String
+  unite_locale    UniteLocale @relation(fields: [unite_locale_id], references: [id])
+}
+
+enum StatutCommande {
+  BROUILLON
+  EN_ATTENTE
+  VALIDEE
+  RECUE
+  ANNULEE
 }

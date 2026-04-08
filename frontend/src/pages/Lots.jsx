@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { IconPlus } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +19,8 @@ import ConfirmModal from '../components/lots/ConfirmModal';
 
 export default function Lots() {
   const { isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+  const highlightArticleId = searchParams.get('article') || null;
   const {
     lots, loading, error, fetch,
     createLot, updateLot, deleteLot,
@@ -272,7 +275,8 @@ export default function Lots() {
               key={lot.id}
               lot={lot}
               isAdmin={isAdmin}
-              defaultOpen={filteredLots.length <= 3 || i === 0}
+              highlightArticleId={highlightArticleId}
+              defaultOpen={filteredLots.length <= 3 || i === 0 || (highlightArticleId && lot.pochettes?.some(p => p.stocks?.some(s => s.article?.id === highlightArticleId)))}
               onEditLot={(l) => setModal({ type: 'lot', data: l })}
               onDeleteLot={handleDeleteLot}
               onAddPochette={(l) => setModal({ type: 'pochette', context: { lotId: l.id, lotNom: l.nom } })}

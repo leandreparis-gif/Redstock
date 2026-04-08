@@ -4,15 +4,17 @@ import { useAuth } from '../context/AuthContext';
 import LogoCRF from './LogoCRF';
 import {
   IconDashboard, IconArmoire, IconSac, IconUniforme,
-  IconReporting, IconAdmin, IconLogout,
+  IconReporting, IconAdmin, IconLogout, IconPeremption, IconCommande,
 } from './Icons';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Tableau de bord',    Icon: IconDashboard },
-  { to: '/armoires',  label: 'Pharmacie', Icon: IconArmoire, alertKey: true },
-  { to: '/lots',      label: 'Lots & Sacs',        Icon: IconSac },
-  { to: '/uniformes', label: 'Uniformes',          Icon: IconUniforme },
-  { to: '/reporting', label: 'Reporting',          Icon: IconReporting },
+  { to: '/dashboard',   label: 'Tableau de bord', Icon: IconDashboard },
+  { to: '/armoires',    label: 'Pharmacie',        Icon: IconArmoire, alertKey: true },
+  { to: '/peremptions', label: 'Peremptions',      Icon: IconPeremption },
+  { to: '/lots',        label: 'Lots & Sacs',      Icon: IconSac },
+  { to: '/commandes',   label: 'Commandes',        Icon: IconCommande },
+  { to: '/uniformes',   label: 'Uniformes',        Icon: IconUniforme },
+  { to: '/reporting',   label: 'Reporting',        Icon: IconReporting },
 ];
 
 export default function Sidebar({ open, onClose, alertesCount = 0 }) {

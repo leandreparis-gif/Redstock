@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { IconPlus, IconEdit, IconTrash, IconChevronDown, IconChevronRight } from '../Icons';
 import StockRow from './StockRow';
 
-export default function PochetteCard({ pochette, isAdmin, onEdit, onDelete, onAddStock, onEditStock, onDeleteStock, onUpdateMinimum }) {
+export default function PochetteCard({ pochette, isAdmin, highlightArticleId, onEdit, onDelete, onAddStock, onEditStock, onDeleteStock, onUpdateMinimum }) {
+  const hasHighlight = highlightArticleId && pochette.stocks?.some(s => s.article?.id === highlightArticleId);
   const [open, setOpen] = useState(true);
   const stockCount = pochette.stocks?.length || 0;
 
@@ -68,6 +69,7 @@ export default function PochetteCard({ pochette, isAdmin, onEdit, onDelete, onAd
           )}
           {pochette.stocks?.map(stock => (
             <StockRow key={stock.id} stock={stock} pochetteId={pochette.id} isAdmin={isAdmin}
+              highlighted={highlightArticleId === stock.article?.id}
               onEdit={onEditStock} onDelete={onDeleteStock} onUpdateMinimum={onUpdateMinimum} />
           ))}
           {isAdmin && (

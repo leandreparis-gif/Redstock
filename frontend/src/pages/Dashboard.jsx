@@ -273,18 +273,11 @@ export default function Dashboard() {
           value={kpis.stocksBas}
           sub="sous le minimum"
         />
-        {/* Carte conformité avec jauge — responsive */}
-        <div className="bg-crf-card-vert rounded-card p-5 transition-transform hover:scale-[1.02]">
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-            <GaugeCirculaire value={kpis.tauxConformite} size={80} />
-            <div className="text-center sm:text-left">
-              <p className="text-sm font-medium text-crf-texte">Conformité</p>
-              <p className="text-xs text-crf-texte-soft mt-0.5">
-                {kpis.totalControles} contrôle{kpis.totalControles !== 1 ? 's' : ''} (30j)
-              </p>
-            </div>
-          </div>
-        </div>
+        <KpiCard
+          icon="✅" label="Conformité" bgClass="bg-crf-card-vert"
+          value={`${kpis.tauxConformite}%`}
+          sub={`${kpis.totalControles} contrôle${kpis.totalControles !== 1 ? 's' : ''} (30j)`}
+        />
       </div>
 
       {/* ── B. Tendance conformité + Péremptions ─────────────────────────────── */}

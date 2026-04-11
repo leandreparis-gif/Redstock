@@ -14,7 +14,7 @@ export default function ULSelector() {
       <select
         className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-crf-texte font-medium focus:ring-1 focus:ring-crf-rouge focus:border-crf-rouge"
         value={selectedUL || ''}
-        onChange={e => selectUL(e.target.value)}
+        onChange={e => { selectUL(e.target.value); window.location.reload(); }}
         disabled={loading}
       >
         {unites.map(ul => (

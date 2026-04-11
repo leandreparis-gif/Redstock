@@ -1,16 +1,15 @@
 import React from 'react';
 
 /**
- * Logo officiel Croix-Rouge française (version 2 lignes, RVB).
- * Toujours affiché sur fond blanc — règle charte CRF 2023.
+ * Logo RedStock horizontal (icône + texte) — Variante A.
  * @param {string} className - classes Tailwind supplémentaires
- * @param {number} height    - hauteur en px (respect taille minimale : 41px digital)
+ * @param {number} height    - hauteur en px
  */
 export default function LogoCRF({ className = '', height = 48 }) {
   return (
     <img
-      src="/logo-crf.svg"
-      alt="Croix-Rouge française"
+      src="/logo-redstock.svg"
+      alt="RedStock"
       height={height}
       style={{ height: `${height}px`, width: 'auto' }}
       className={className}
@@ -20,22 +19,33 @@ export default function LogoCRF({ className = '', height = 48 }) {
 }
 
 /**
- * Croix seule (macaron) — usage : profil, badge, icône.
- * Taille minimale : 140 px (charte CRF 2023).
+ * Logo RedStock empilé (icône au-dessus du texte) — Variante C.
+ */
+export function LogoStacked({ className = '', height = 120 }) {
+  return (
+    <img
+      src="/logo-redstock-stacked.svg"
+      alt="RedStock"
+      height={height}
+      style={{ height: `${height}px`, width: 'auto' }}
+      className={className}
+      draggable={false}
+    />
+  );
+}
+
+/**
+ * Icône RedStock seule (croix stylisée) — usage : favicon, badge, profil.
  */
 export function CroixCRF({ size = 40, className = '' }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 96 96"
+    <img
+      src="/favicon.svg"
+      alt="RedStock"
       width={size}
       height={size}
       className={className}
-      aria-label="Croix-Rouge française"
-    >
-      <rect width="96" height="96" fill="#FFFFFF" rx="8" />
-      <rect x="37" y="15" width="22" height="66" fill="#E30613" rx="3" />
-      <rect x="15" y="37" width="66" height="22" fill="#E30613" rx="3" />
-    </svg>
+      draggable={false}
+    />
   );
 }

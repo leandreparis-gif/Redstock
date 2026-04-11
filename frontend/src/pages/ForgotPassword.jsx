@@ -100,7 +100,7 @@ export default function ForgotPassword() {
         )}
 
         <p className="text-center text-xs text-gray-400 mt-10">
-          RedStock · Croix-Rouge française
+          RedStock
         </p>
       </div>
     </div>

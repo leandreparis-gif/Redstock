@@ -19,8 +19,11 @@ export function ULProvider({ children }) {
         const list = Array.isArray(data) ? data : [data];
         setUnites(list);
         if (list.length > 0 && !selectedUL) {
-          setSelectedUL(list[0].id);
-          localStorage.setItem('pharma_selected_ul', list[0].id);
+          // Par défaut, sélectionner "Versailles Grand Parc Ouest" si elle existe
+          const versailles = list.find(ul => ul.nom.toLowerCase().includes('versailles'));
+          const defaultUL = versailles || list[0];
+          setSelectedUL(defaultUL.id);
+          localStorage.setItem('pharma_selected_ul', defaultUL.id);
         }
       })
       .catch(() => setUnites([]))

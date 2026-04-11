@@ -84,7 +84,7 @@ export default function Login() {
 
         {/* Footer */}
         <p className="relative z-10 text-red-200 text-xs">
-          Croix-Rouge française · Versailles Grand Parc Ouest
+          RedStock · Gestion de stock médical
         </p>
       </div>
 
@@ -205,7 +205,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-8">
-            RedStock · Croix-Rouge française
+            RedStock
           </p>
         </div>
       </div>

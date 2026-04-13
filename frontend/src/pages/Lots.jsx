@@ -276,7 +276,7 @@ export default function Lots() {
               lot={lot}
               isAdmin={isAdmin}
               highlightArticleId={highlightArticleId}
-              defaultOpen={filteredLots.length <= 3 || i === 0 || (highlightArticleId && lot.pochettes?.some(p => p.stocks?.some(s => s.article?.id === highlightArticleId)))}
+              defaultOpen={!!(highlightArticleId && lot.pochettes?.some(p => p.stocks?.some(s => s.article?.id === highlightArticleId)))}
               onEditLot={(l) => setModal({ type: 'lot', data: l })}
               onDeleteLot={handleDeleteLot}
               onAddPochette={(l) => setModal({ type: 'pochette', context: { lotId: l.id, lotNom: l.nom } })}

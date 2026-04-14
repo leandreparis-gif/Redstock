@@ -97,7 +97,7 @@ function StockModal({ tiroirNom, articles, initial, onSave, onClose, loading }) 
           date_peremption: l.date_peremption ? String(l.date_peremption).slice(0, 10) : '',
           quantite: l.quantite ?? 0,
         }))
-      : [{ label: '', date_peremption: '', quantite: 1 }]
+      : [{ label: '', date_peremption: '', quantite: initial?.quantite_actuelle ?? 1 }]
   );
 
   const article = articles.find(a => a.id === articleId);

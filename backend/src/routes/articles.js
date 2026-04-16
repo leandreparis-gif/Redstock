@@ -81,7 +81,7 @@ router.get('/barcode/:code', async (req, res) => {
  * Body : { nom, description, quantite_min, categorie, est_perimable, code_barre }
  */
 router.post('/', requireAdmin, async (req, res) => {
-  const { nom, description, quantite_min, categorie, est_perimable, code_barre } = req.body;
+  const { nom, description, quantite_min, categorie, est_perimable, code_barre, photo_url } = req.body;
   if (!nom || !categorie) return res.status(400).json({ error: 'Nom et catégorie requis' });
 
   try {
@@ -101,6 +101,7 @@ router.post('/', requireAdmin, async (req, res) => {
         nom,
         description: description || null,
         code_barre: finalCode,
+        photo_url: photo_url || null,
         quantite_min: quantite_min ?? 1,
         categorie,
         est_perimable: est_perimable ?? false,
@@ -129,7 +130,7 @@ router.post('/', requireAdmin, async (req, res) => {
  * PUT /api/articles/:id
  */
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { nom, description, quantite_min, categorie, est_perimable, code_barre } = req.body;
+  const { nom, description, quantite_min, categorie, est_perimable, code_barre, photo_url } = req.body;
 
   try {
     const existing = await prisma.article.findFirst({
@@ -146,6 +147,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
         ...(categorie !== undefined && { categorie }),
         ...(est_perimable !== undefined && { est_perimable }),
         ...(code_barre !== undefined && { code_barre: code_barre || null }),
+        ...(photo_url !== undefined && { photo_url: photo_url || null }),
       },
     });
     res.json(article);

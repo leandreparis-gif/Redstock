@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
-import { IconPlus, IconEdit, IconTrash, IconPrint, IconBarcode } from '../components/Icons';
+import { IconPlus, IconEdit, IconTrash, IconPrint, IconBarcode, IconSearch } from '../components/Icons';
 import apiClient from '../api/client';
 import { useArticles } from '../hooks/useArticles';
 import { useAuth } from '../context/AuthContext';
+import { uploadArticlePhoto, deleteArticlePhoto } from '../lib/supabase';
 import JsBarcode from 'jsbarcode';
 
 import Modal from '../components/Modal';
@@ -19,7 +20,34 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
     quantite_min: initial?.quantite_min || 1,
     est_perimable: initial?.est_perimable ?? true,
     code_barre: initial?.code_barre || '',
+    photo_url: initial?.photo_url || '',
   });
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      // ID temporaire pour les nouveaux articles — sera écrasé à la sauvegarde
+      const id = initial?.id || `temp_${Date.now()}`;
+      const url = await uploadArticlePhoto(file, id);
+      setForm(f => ({ ...f, photo_url: url }));
+    } catch (err) {
+      console.error('Erreur upload photo :', err);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (initial?.id) {
+      try { await deleteArticlePhoto(initial.id); } catch { /* ignore */ }
+    }
+    setForm(f => ({ ...f, photo_url: '' }));
+  };
 
   return (
     <Modal title={initial ? 'Modifier l\'article' : 'Nouvel article'} onClose={onClose}>
@@ -46,6 +74,57 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
         <textarea className="input resize-none" rows={2} value={form.description}
           onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
       </div>
+
+      {/* Photo article */}
+      <div>
+        <label className="label">Photo</label>
+        <div className="flex items-center gap-3">
+          {form.photo_url ? (
+            <div className="relative group">
+              <img
+                src={form.photo_url}
+                alt={form.nom || 'Article'}
+                className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full
+                           text-xs flex items-center justify-center opacity-0 group-hover:opacity-100
+                           transition-opacity shadow"
+                title="Supprimer la photo"
+              >×</button>
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300
+                            flex items-center justify-center text-gray-400 text-xs">
+              {uploading ? (
+                <div className="w-5 h-5 border-2 border-crf-rouge border-t-transparent rounded-full animate-spin" />
+              ) : 'Photo'}
+            </div>
+          )}
+          <div className="flex-1">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="hidden"
+              id="article-photo-input"
+            />
+            <label
+              htmlFor="article-photo-input"
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md
+                         border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors
+                         ${uploading ? 'opacity-50 pointer-events-none' : 'text-gray-600'}`}
+            >
+              {uploading ? 'Compression…' : form.photo_url ? 'Changer la photo' : 'Ajouter une photo'}
+            </label>
+            <p className="text-[11px] text-gray-400 mt-1">JPEG/PNG, compressee automatiquement (~80 Ko max)</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Quantite minimale *</label>
@@ -62,7 +141,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
       </div>
       <div className="flex gap-2 justify-end pt-2">
         <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!form.nom || !form.categorie || loading}
+        <button className="btn-primary" disabled={!form.nom || !form.categorie || loading || uploading}
           onClick={() => onSave(form)}>
           {loading ? 'Enregistrement…' : 'Enregistrer'}
         </button>
@@ -164,8 +243,19 @@ function AdminArticles() {
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  const filteredArticles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return articles;
+    return articles.filter(a =>
+      (a.nom || '').toLowerCase().includes(q) ||
+      (a.categorie || '').toLowerCase().includes(q) ||
+      (a.code_barre || '').toLowerCase().includes(q)
+    );
+  }, [articles, search]);
 
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
@@ -191,20 +281,49 @@ function AdminArticles() {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
-        <button className="btn-primary flex items-center gap-2" onClick={() => setModal({ type: 'article' })}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            className="input text-sm pl-9 w-full"
+            placeholder="Rechercher un article par nom, catégorie ou code-barres…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <button className="btn-primary flex items-center gap-2 sm:ml-auto" onClick={() => setModal({ type: 'article' })}>
           <IconPlus size={16} /> Nouvel article
         </button>
       </div>
+      {!loading && search.trim() && (
+        <p className="text-xs text-gray-500 mb-2">
+          {filteredArticles.length} résultat{filteredArticles.length !== 1 ? 's' : ''} sur {articles.length}
+        </p>
+      )}
       {loading ? (
         <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement…</p></div>
+      ) : filteredArticles.length === 0 ? (
+        <div className="card text-center py-12 text-gray-400">
+          <p className="text-sm">
+            {search.trim() ? `Aucun article ne correspond à « ${search.trim()} ».` : 'Aucun article.'}
+          </p>
+        </div>
       ) : (
         <>
           {/* Mobile card view */}
           <div className="sm:hidden card p-0 divide-y divide-gray-100">
-            {articles.map(a => (
+            {filteredArticles.map(a => (
               <div key={a.id} className="p-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                {a.photo_url ? (
+                  <img src={a.photo_url} alt="" loading="lazy"
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 flex items-center justify-center text-gray-300 text-xs">
+                    ◻
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-sm text-crf-texte">{a.nom}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{a.categorie}</p>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -228,10 +347,18 @@ function AdminArticles() {
           {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto card p-0">
             <table className="table-auto">
-              <thead><tr><th>Nom</th><th>Categorie</th><th>Code-barres</th><th>Qte min.</th><th>Perimable</th><th></th></tr></thead>
+              <thead><tr><th></th><th>Nom</th><th>Categorie</th><th>Code-barres</th><th>Qte min.</th><th>Perimable</th><th></th></tr></thead>
               <tbody>
-                {articles.map(a => (
+                {filteredArticles.map(a => (
                   <tr key={a.id}>
+                    <td className="w-10">
+                      {a.photo_url ? (
+                        <img src={a.photo_url} alt="" loading="lazy"
+                          className="w-8 h-8 rounded object-cover bg-gray-100" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-300 text-[10px]">◻</div>
+                      )}
+                    </td>
                     <td className="font-medium">{a.nom}</td>
                     <td>{a.categorie}</td>
                     <td className="font-mono text-xs text-gray-500">{a.code_barre || '—'}</td>

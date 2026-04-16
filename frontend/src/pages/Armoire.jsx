@@ -369,6 +369,14 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
             ? <IconChevronDown size={14} className="text-gray-400 flex-shrink-0" />
             : <IconChevronRight size={14} className="text-gray-400 flex-shrink-0" />
           }
+          {article.photo_url ? (
+            <img src={article.photo_url} alt="" loading="lazy"
+              className="w-7 h-7 rounded object-cover flex-shrink-0 bg-gray-100" />
+          ) : (
+            <div className="w-7 h-7 rounded bg-gray-100 flex-shrink-0 flex items-center justify-center text-gray-300 text-[10px]">
+              ◻
+            </div>
+          )}
           <span className="text-sm font-medium text-crf-texte">{article.nom}</span>
           <span className="text-[11px] text-gray-400 hidden sm:block flex-shrink-0">{article.categorie}</span>
         </div>

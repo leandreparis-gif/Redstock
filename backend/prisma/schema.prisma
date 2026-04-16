@@ -85,6 +85,7 @@ model Article {
   nom            String
   description    String?
   code_barre     String?  @unique
+  photo_url      String?
   quantite_min   Int      @default(1)
   categorie      String
   est_perimable  Boolean  @default(false)

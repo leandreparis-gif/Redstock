@@ -564,6 +564,8 @@ const ACTION_LABELS = {
   USER_CREATE:       { label: 'Compte cree',         color: 'bg-purple-100 text-purple-700' },
   USER_DELETE:       { label: 'Compte supprime',     color: 'bg-red-100 text-red-700' },
   STOCK_UPDATE:      { label: 'Stock mis a jour',    color: 'bg-orange-100 text-orange-700' },
+  STOCK_TRANSFER:    { label: 'Transfert stock',     color: 'bg-blue-100 text-blue-700' },
+  STOCK_DELETE:      { label: 'Stock supprime',      color: 'bg-red-100 text-red-700' },
   PLANNING_CREATE:   { label: 'Planning cree',       color: 'bg-indigo-100 text-indigo-700' },
   PLANNING_UPDATE:   { label: 'Planning modifie',    color: 'bg-indigo-100 text-indigo-700' },
   PLANNING_DELETE:   { label: 'Planning supprime',   color: 'bg-red-100 text-red-700' },

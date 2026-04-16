@@ -197,6 +197,28 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
       return res.status(404).json({ error: 'Tiroir introuvable' });
     }
 
+    const qte = quantite_actuelle ?? 0;
+
+    // Si la quantité tombe à 0 (ou en dessous), on supprime l'entrée de stock
+    // au lieu de la conserver à 0 — l'article disparaît du tiroir.
+    if (qte <= 0) {
+      await prisma.stockTiroir.deleteMany({
+        where: {
+          article_id: req.params.articleId,
+          tiroir_id: req.params.tiroirId,
+        },
+      });
+
+      logAction(prisma, {
+        uniteLocaleId: tiroir.armoire.unite_locale_id,
+        action: 'STOCK_DELETE',
+        details: `Stock tiroir supprime (quantite 0) — article ${req.params.articleId}`,
+        user: { prenom: req.user.prenom, login: req.user.login },
+      });
+
+      return res.json({ message: 'Stock supprimé (quantité nulle)', deleted: true });
+    }
+
     const stock = await prisma.stockTiroir.upsert({
       where: {
         article_id_tiroir_id: {
@@ -205,14 +227,14 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
         },
       },
       update: {
-        quantite_actuelle: quantite_actuelle ?? 0,
+        quantite_actuelle: qte,
         lots: lots ?? [],
       },
       create: {
         article_id: req.params.articleId,
         tiroir_id: req.params.tiroirId,
         unite_locale_id: tiroir.armoire.unite_locale_id,
-        quantite_actuelle: quantite_actuelle ?? 0,
+        quantite_actuelle: qte,
         lots: lots ?? [],
       },
     });
@@ -220,7 +242,7 @@ router.put('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, res)
     logAction(prisma, {
       uniteLocaleId: tiroir.armoire.unite_locale_id,
       action: 'STOCK_UPDATE',
-      details: `Stock tiroir mis a jour — article ${req.params.articleId}, qte: ${quantite_actuelle ?? 0}`,
+      details: `Stock tiroir mis a jour — article ${req.params.articleId}, qte: ${qte}`,
       user: { prenom: req.user.prenom, login: req.user.login },
     });
 
@@ -257,6 +279,146 @@ router.delete('/tiroirs/:tiroirId/stock/:articleId', requireAdmin, async (req, r
   } catch (err) {
     console.error('[stocks-tiroir/DELETE]', err);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── TRANSFERT TIROIR → TIROIR ───────────────────────────────────────────────
+
+/**
+ * POST /api/armoires/transfer
+ * Transfert atomique d'un article (lot) d'un tiroir vers un autre.
+ * Body : { source_tiroir_id, dest_tiroir_id, article_id, lot_label?, lot_date_peremption?, quantite }
+ */
+router.post('/transfer', requireAdmin, async (req, res) => {
+  const { source_tiroir_id, dest_tiroir_id, article_id, lot_label, lot_date_peremption, quantite } = req.body;
+
+  if (!source_tiroir_id || !dest_tiroir_id || !article_id || !quantite || quantite <= 0) {
+    return res.status(400).json({ error: 'Paramètres invalides' });
+  }
+  if (source_tiroir_id === dest_tiroir_id) {
+    return res.status(400).json({ error: 'Source et destination identiques' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Vérifier les deux tiroirs + UL
+      const [srcTiroir, destTiroir] = await Promise.all([
+        tx.tiroir.findFirst({
+          where: { id: source_tiroir_id },
+          include: { armoire: { select: { unite_locale_id: true, nom: true } } },
+        }),
+        tx.tiroir.findFirst({
+          where: { id: dest_tiroir_id },
+          include: { armoire: { select: { unite_locale_id: true, nom: true } } },
+        }),
+      ]);
+
+      if (!srcTiroir || !destTiroir) {
+        throw new Error('Tiroir introuvable');
+      }
+
+      const ulId = srcTiroir.armoire.unite_locale_id;
+      if (req.user.role !== 'SUPER_ADMIN' && (ulId !== req.user.unite_locale_id || destTiroir.armoire.unite_locale_id !== req.user.unite_locale_id)) {
+        throw new Error('Accès non autorisé');
+      }
+
+      // 2. Lire le stock source
+      const srcStock = await tx.stockTiroir.findUnique({
+        where: {
+          article_id_tiroir_id: { article_id, tiroir_id: source_tiroir_id },
+        },
+        include: { article: true },
+      });
+
+      if (!srcStock) throw new Error('Stock source introuvable');
+
+      const srcLots = srcStock.lots || [];
+
+      // 3. Trouver le lot source et décrémenter
+      const lotIdx = srcLots.findIndex(l =>
+        (l.label || '') === (lot_label || '') &&
+        (l.date_peremption || null) === (lot_date_peremption || null)
+      );
+
+      if (lotIdx < 0) throw new Error('Lot source introuvable');
+      if (srcLots[lotIdx].quantite < quantite) throw new Error('Quantité insuffisante');
+
+      const newSrcLots = srcLots
+        .map((l, i) => i === lotIdx ? { ...l, quantite: l.quantite - quantite } : l)
+        .filter(l => l.quantite > 0);
+      const newSrcQty = newSrcLots.reduce((s, l) => s + (l.quantite || 0), 0);
+
+      // Supprimer ou mettre à jour le stock source
+      if (newSrcQty <= 0) {
+        await tx.stockTiroir.delete({
+          where: { article_id_tiroir_id: { article_id, tiroir_id: source_tiroir_id } },
+        });
+      } else {
+        await tx.stockTiroir.update({
+          where: { article_id_tiroir_id: { article_id, tiroir_id: source_tiroir_id } },
+          data: { quantite_actuelle: newSrcQty, lots: newSrcLots },
+        });
+      }
+
+      // 4. Upsert le stock destination
+      const destStock = await tx.stockTiroir.findUnique({
+        where: { article_id_tiroir_id: { article_id, tiroir_id: dest_tiroir_id } },
+      });
+
+      const destLots = destStock?.lots || [];
+      const destLotIdx = destLots.findIndex(l =>
+        (l.label || '') === (lot_label || '') &&
+        (l.date_peremption || null) === (lot_date_peremption || null)
+      );
+
+      let newDestLots;
+      if (destLotIdx >= 0) {
+        newDestLots = destLots.map((l, i) =>
+          i === destLotIdx ? { ...l, quantite: (l.quantite || 0) + quantite } : l
+        );
+      } else {
+        newDestLots = [...destLots, {
+          label: lot_label || '',
+          date_peremption: lot_date_peremption || null,
+          quantite,
+        }];
+      }
+      const newDestQty = newDestLots.reduce((s, l) => s + (l.quantite || 0), 0);
+
+      await tx.stockTiroir.upsert({
+        where: { article_id_tiroir_id: { article_id, tiroir_id: dest_tiroir_id } },
+        update: { quantite_actuelle: newDestQty, lots: newDestLots },
+        create: {
+          article_id,
+          tiroir_id: dest_tiroir_id,
+          unite_locale_id: destTiroir.armoire.unite_locale_id,
+          quantite_actuelle: newDestQty,
+          lots: newDestLots,
+        },
+      });
+
+      return {
+        articleNom: srcStock.article.nom,
+        srcNom: `${srcTiroir.armoire.nom} > ${srcTiroir.nom}`,
+        destNom: `${destTiroir.armoire.nom} > ${destTiroir.nom}`,
+        ulId,
+      };
+    });
+
+    // Log hors transaction (fire-and-forget)
+    logAction(prisma, {
+      uniteLocaleId: result.ulId,
+      action: 'STOCK_TRANSFER',
+      details: `Transfert tiroir : ${result.srcNom} → ${result.destNom}, article "${result.articleNom}", qte: ${quantite}`,
+      user: { prenom: req.user.prenom, login: req.user.login },
+    });
+
+    res.json({ message: 'Transfert effectué' });
+  } catch (err) {
+    console.error('[transfer]', err);
+    const msg = ['Tiroir introuvable', 'Accès non autorisé', 'Stock source introuvable', 'Lot source introuvable', 'Quantité insuffisante'];
+    const status = msg.includes(err.message) ? 400 : 500;
+    res.status(status).json({ error: err.message || 'Erreur serveur' });
   }
 });
 

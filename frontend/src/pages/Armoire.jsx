@@ -332,7 +332,7 @@ function ArticlePeremptionBadge({ lots }) {
   );
 }
 
-function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted, parentOpen }) {
+function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, onTransferTiroir, highlighted, parentOpen }) {
   const { article, quantite_actuelle, lots } = stock;
   const qMin = article.quantite_min || 0;
   const sousMin = quantite_actuelle < qMin;
@@ -408,6 +408,14 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
                 <span className="sm:hidden">→</span>
                 <span className="hidden sm:inline">→ Lot</span>
               </button>
+              <button
+                onClick={() => onTransferTiroir(stock, tiroirId)}
+                className="text-xs px-2 py-0.5 rounded border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors font-medium"
+                title="Transférer vers un autre tiroir"
+              >
+                <span className="sm:hidden">⇄</span>
+                <span className="hidden sm:inline">⇄ Tiroir</span>
+              </button>
               <button className="btn-icon p-1" onClick={() => onEdit(stock)}><IconEdit size={13} /></button>
               <button className="btn-icon p-1 hover:text-red-500" onClick={() => onDelete(stock)}><IconTrash size={13} /></button>
             </div>
@@ -438,7 +446,7 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
 // ─── Tiroir ───────────────────────────────────────────────────────────────────
 
 function TiroirSection({ tiroir, armoire, isAdmin, articles,
-  onEditTiroir, onDeleteTiroir, onAddStock, onEditStock, onDeleteStock, onControler, onTransferStock,
+  onEditTiroir, onDeleteTiroir, onAddStock, onEditStock, onDeleteStock, onControler, onTransferStock, onTransferTiroir,
   highlightArticleId
 }) {
   const hasHighlight = highlightArticleId && tiroir.stocks?.some(s => s.article.id === highlightArticleId);
@@ -517,6 +525,7 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
               onEdit={onEditStock}
               onDelete={onDeleteStock}
               onTransfer={onTransferStock}
+              onTransferTiroir={onTransferTiroir}
               highlighted={highlightArticleId === stock.article.id}
               parentOpen={open}
             />
@@ -544,7 +553,7 @@ function ArmoireCard({ armoire, isAdmin, articles,
   onEditArmoire, onDeleteArmoire,
   onAddTiroir, onEditTiroir, onDeleteTiroir,
   onAddStock, onEditStock, onDeleteStock,
-  onControler, onTransferStock, highlightArticleId, defaultOpen = false
+  onControler, onTransferStock, onTransferTiroir, highlightArticleId, defaultOpen = false
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -679,6 +688,7 @@ function ArmoireCard({ armoire, isAdmin, articles,
               onDeleteStock={onDeleteStock}
               onControler={onControler}
               onTransferStock={onTransferStock}
+              onTransferTiroir={onTransferTiroir}
               highlightArticleId={highlightArticleId}
             />
           ))}
@@ -899,6 +909,102 @@ function TransfertModal({ stock, tiroirId, lotsData, onTransfer, onClose, loadin
         <button className="btn-primary" disabled={!canSubmit || loading}
           onClick={() => onTransfer({ stock, tiroirId, srcLot, qty, destPochetteId })}>
           {loading ? 'Transfert…' : '→ Transférer'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal Transfert Tiroir → Tiroir ─────────────────────────────────────────
+
+function TiroirTransfertModal({ stock, sourceTiroirId, armoires, onTransfer, onClose, loading }) {
+  const sourceLots = (stock.lots || []).filter(l => (l.quantite || 0) > 0);
+  const [srcIdx, setSrcIdx] = useState(0);
+  const [qty, setQty] = useState(1);
+  const [destArmoireId, setDestArmoireId] = useState('');
+  const [destTiroirId, setDestTiroirId] = useState('');
+
+  const srcLot = sourceLots[srcIdx];
+  const maxQty = srcLot?.quantite || 0;
+
+  const destArmoire = armoires.find(a => a.id === destArmoireId);
+  const destTiroirs = (destArmoire?.tiroirs || []).filter(t => t.id !== sourceTiroirId);
+
+  const canSubmit = srcLot && qty > 0 && qty <= maxQty && destTiroirId;
+
+  return (
+    <Modal title={`Transférer vers un tiroir — ${stock.article.nom}`} onClose={onClose}>
+      <p className="text-xs text-gray-500">
+        Déplacez des unités d'un tiroir vers un autre tiroir de la pharmacie.
+      </p>
+
+      {/* Source lot */}
+      <div>
+        <label className="label">Lot source *</label>
+        {sourceLots.length === 0 ? (
+          <p className="text-sm text-red-500">Aucun lot disponible dans ce stock.</p>
+        ) : (
+          <select className="select" value={srcIdx}
+            onChange={e => { setSrcIdx(Number(e.target.value)); setQty(1); }}>
+            {sourceLots.map((l, i) => (
+              <option key={i} value={i}>
+                {l.label || `Lot ${i + 1}`}{l.date_peremption ? ` — exp. ${new Date(l.date_peremption).toLocaleDateString('fr-FR')}` : ''} (×{l.quantite})
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Quantité */}
+      {srcLot && (
+        <div>
+          <label className="label">Quantité * <span className="font-normal text-gray-400">(max {maxQty})</span></label>
+          <input type="number" className="input" min={1} max={maxQty}
+            value={qty} onChange={e => setQty(Math.min(maxQty, Math.max(1, parseInt(e.target.value) || 1)))} />
+        </div>
+      )}
+
+      {/* Destination armoire */}
+      <div>
+        <label className="label">Armoire destination *</label>
+        <select className="select" value={destArmoireId}
+          onChange={e => { setDestArmoireId(e.target.value); setDestTiroirId(''); }}>
+          <option value="">Choisir une armoire…</option>
+          {armoires.map(a => (
+            <option key={a.id} value={a.id}>{a.nom}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Destination tiroir */}
+      {destArmoireId && (
+        <div>
+          <label className="label">Tiroir destination *</label>
+          <select className="select" value={destTiroirId}
+            onChange={e => setDestTiroirId(e.target.value)}>
+            <option value="">Choisir un tiroir…</option>
+            {destTiroirs.map(t => (
+              <option key={t.id} value={t.id}>{t.nom}</option>
+            ))}
+          </select>
+          {destTiroirs.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">Aucun autre tiroir disponible dans cette armoire.</p>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end pt-2">
+        <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        <button className="btn-primary" disabled={!canSubmit || loading}
+          onClick={() => onTransfer({
+            source_tiroir_id: sourceTiroirId,
+            dest_tiroir_id: destTiroirId,
+            article_id: stock.article.id,
+            lot_label: srcLot?.label || '',
+            lot_date_peremption: srcLot?.date_peremption || null,
+            quantite: qty,
+          })}>
+          {loading ? 'Transfert…' : '⇄ Transférer'}
         </button>
       </div>
     </Modal>
@@ -1138,6 +1244,21 @@ export default function Armoire() {
     }
   };
 
+  // ── Handler transfert tiroir → tiroir ────────────────────────────────────
+  const handleTiroirTransfer = async (payload) => {
+    setSaving(true);
+    try {
+      await apiClient.post('/armoires/transfer', payload);
+      showToast('Transfert entre tiroirs effectué');
+      closeModal();
+      fetch(); // Refetch pour mettre à jour les deux tiroirs
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Erreur lors du transfert', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
 
   const exportCSV = () => {
@@ -1247,6 +1368,7 @@ export default function Armoire() {
               onDeleteStock={handleDeleteStock}
               onControler={(t) => setModal({ type: 'controle', data: t })}
               onTransferStock={(stock, tiroirId) => setModal({ type: 'transfert', data: stock, context: { tiroirId } })}
+              onTransferTiroir={(stock, tiroirId) => setModal({ type: 'transfert-tiroir', data: stock, context: { tiroirId } })}
               highlightArticleId={highlightArticleId}
             />
           ))}
@@ -1299,6 +1421,17 @@ export default function Armoire() {
           tiroirId={modal.context?.tiroirId}
           lotsData={lotsData}
           onTransfer={handleTransfer}
+          onClose={closeModal}
+          loading={saving}
+        />
+      )}
+
+      {modal?.type === 'transfert-tiroir' && (
+        <TiroirTransfertModal
+          stock={modal.data}
+          sourceTiroirId={modal.context?.tiroirId}
+          armoires={armoires}
+          onTransfer={handleTiroirTransfer}
           onClose={closeModal}
           loading={saving}
         />

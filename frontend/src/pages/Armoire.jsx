@@ -332,7 +332,7 @@ function ArticlePeremptionBadge({ lots }) {
   );
 }
 
-function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted }) {
+function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, onEdit, onDelete, onTransfer, highlighted, parentOpen }) {
   const { article, quantite_actuelle, lots } = stock;
   const qMin = article.quantite_min || 0;
   const sousMin = quantite_actuelle < qMin;
@@ -340,6 +340,11 @@ function ArticleRow({ stock, isAdmin, tiroirNom, articles, armoireId, tiroirId, 
   const worstStatut = getWorstPeremptionStatut(lots);
   const urgent = worstStatut === 'perime' || worstStatut === 'j7';
   const [open, setOpen] = useState(urgent || highlighted);
+
+  // Quand le tiroir parent s'ouvre, déplier toutes les cartes articles
+  useEffect(() => {
+    if (parentOpen) setOpen(true);
+  }, [parentOpen]);
   const rowRef = useRef(null);
 
   useEffect(() => {
@@ -429,7 +434,7 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
   highlightArticleId
 }) {
   const hasHighlight = highlightArticleId && tiroir.stocks?.some(s => s.article.id === highlightArticleId);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const hasProbleme = tiroir.stocks?.some(s => {
     const p = pireStatutStock(s.lots, s.article.est_perimable);
     return p === 'perime' || p === 'j7'
@@ -505,6 +510,7 @@ function TiroirSection({ tiroir, armoire, isAdmin, articles,
               onDelete={onDeleteStock}
               onTransfer={onTransferStock}
               highlighted={highlightArticleId === stock.article.id}
+              parentOpen={open}
             />
           ))}
           {isAdmin && (
@@ -530,9 +536,9 @@ function ArmoireCard({ armoire, isAdmin, articles,
   onEditArmoire, onDeleteArmoire,
   onAddTiroir, onEditTiroir, onDeleteTiroir,
   onAddStock, onEditStock, onDeleteStock,
-  onControler, onTransferStock, highlightArticleId
+  onControler, onTransferStock, highlightArticleId, defaultOpen = false
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -982,43 +988,82 @@ export default function Armoire() {
   // ── Handler transfert ───────────────────────────────────────────────────
   const handleTransfer = async ({ stock, tiroirId, srcLot, qty, destPochetteId }) => {
     setSaving(true);
+
+    const oldTiroirLots = stock.lots || [];
+    const oldTiroirQty  = stock.quantite_actuelle || 0;
+
     try {
       // 1. Réduire le stock tiroir
-      const newLots = (stock.lots || []).map(l =>
-        l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-          ? { ...l, quantite: l.quantite - qty }
-          : l
-      ).filter(l => l.quantite > 0);
-      const newQty = newLots.reduce((s, l) => s + (l.quantite || 0), 0);
-      await upsertStock(tiroirId, stock.article.id, { quantite_actuelle: newQty, lots: newLots });
+      const newTiroirLots = oldTiroirLots
+        .map(l =>
+          l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
+            ? { ...l, quantite: l.quantite - qty }
+            : l
+        )
+        .filter(l => l.quantite > 0);
+      const newTiroirQty = newTiroirLots.reduce((s, l) => s + (l.quantite || 0), 0);
+      await upsertStock(tiroirId, stock.article.id, { quantite_actuelle: newTiroirQty, lots: newTiroirLots });
 
       // 2. Ajouter au stock pochette (fusionner le lot)
-      const pochette = lotsData.flatMap(l => l.pochettes || []).find(p => p.id === destPochetteId);
-      const existingStock = (pochette?.stocks || []).find(s => s.article_id === stock.article.id);
-      const existingLots = existingStock?.lots || [];
-      const existingIdx = existingLots.findIndex(
-        l => l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-      );
-      let newPochetteLots;
-      if (existingIdx >= 0) {
-        newPochetteLots = existingLots.map((l, i) =>
-          i === existingIdx ? { ...l, quantite: (l.quantite || 0) + qty } : l
+      try {
+        const pochette = lotsData.flatMap(l => l.pochettes || []).find(p => p.id === destPochetteId);
+        const existingStock = (pochette?.stocks || []).find(s => s.article_id === stock.article.id);
+        const existingLots  = existingStock?.lots || [];
+
+        const existingQtyBase = existingStock
+          ? Math.max(
+              existingStock.quantite_actuelle || 0,
+              existingLots.reduce((s, l) => s + (l.quantite || 0), 0)
+            )
+          : 0;
+
+        const existingIdx = existingLots.findIndex(
+          l => l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
         );
-      } else {
-        newPochetteLots = [...existingLots, { ...srcLot, quantite: qty }];
+        let newPochetteLots;
+        if (existingIdx >= 0) {
+          newPochetteLots = existingLots.map((l, i) =>
+            i === existingIdx ? { ...l, quantite: (l.quantite || 0) + qty } : l
+          );
+        } else {
+          newPochetteLots = [
+            ...existingLots,
+            {
+              label: srcLot.label || '',
+              date_peremption: srcLot.date_peremption || null,
+              quantite: Number(qty),
+            },
+          ];
+        }
+
+        const newLotsTotal  = newPochetteLots.reduce((s, l) => s + (l.quantite || 0), 0);
+        const newPochetteQty = existingLots.length === 0 && existingQtyBase > 0
+          ? existingQtyBase + Number(qty)
+          : newLotsTotal;
+
+        await apiClient.put(`/lots/pochettes/${destPochetteId}/stock/${stock.article.id}`, {
+          quantite_actuelle: newPochetteQty,
+          lots: newPochetteLots,
+        });
+      } catch (e2) {
+        // Rollback étape 1
+        try {
+          await upsertStock(tiroirId, stock.article.id, {
+            quantite_actuelle: oldTiroirQty,
+            lots: oldTiroirLots,
+          });
+        } catch (_) { /* ignore */ }
+        throw new Error(
+          `Impossible d'ajouter au lot : ${e2.response?.data?.error || e2.message || 'Erreur réseau'}. Stock pharmacie restauré.`
+        );
       }
-      const newPochetteQty = newPochetteLots.reduce((s, l) => s + (l.quantite || 0), 0);
-      await apiClient.put(`/lots/pochettes/${destPochetteId}/stock/${stock.article.id}`, {
-        quantite_actuelle: newPochetteQty,
-        lots: newPochetteLots,
-      });
 
       showToast('Transfert effectué');
       closeModal();
       fetch();
       fetchLots();
     } catch (e) {
-      showToast(e.response?.data?.error || 'Erreur lors du transfert', 'error');
+      showToast(e.message || e.response?.data?.error || 'Erreur lors du transfert', 'error');
     } finally {
       setSaving(false);
     }

@@ -540,11 +540,43 @@ function ArmoireCard({ armoire, isAdmin, articles,
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
+  // Calcul des alertes dans tous les tiroirs de l'armoire
+  const allStocks = useMemo(() =>
+    (armoire.tiroirs || []).flatMap(t => t.stocks || []),
+    [armoire.tiroirs]
+  );
+
+  const alertes = useMemo(() => {
+    let sousMin = 0;
+    let perimes = 0;
+    let bientot = 0; // j7 + j30
+
+    for (const s of allStocks) {
+      if (s.quantite_actuelle < (s.article?.quantite_min || 0)) sousMin++;
+      const statut = pireStatutStock(s.lots, s.article?.est_perimable);
+      if (statut === 'perime') perimes++;
+      else if (statut === 'j7' || statut === 'j30') bientot++;
+    }
+    return { sousMin, perimes, bientot, total: sousMin + perimes + bientot };
+  }, [allStocks]);
+
+  const headerBorder = alertes.perimes > 0
+    ? 'border-red-200'
+    : alertes.sousMin > 0
+      ? 'border-orange-200'
+      : alertes.bientot > 0
+        ? 'border-yellow-200'
+        : 'border-gray-200';
+
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className={`card p-0 overflow-hidden border ${headerBorder}`}>
       {/* Header armoire */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-5 py-4
-                      border-b border-gray-100 cursor-pointer hover:bg-gray-50/60 transition-colors"
+      <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-5 py-4
+                      border-b cursor-pointer hover:bg-gray-50/60 transition-colors
+                      ${alertes.perimes > 0 ? 'bg-red-50/50 border-red-100'
+                        : alertes.sousMin > 0 ? 'bg-orange-50/30 border-orange-100'
+                        : alertes.bientot > 0 ? 'bg-yellow-50/30 border-yellow-100'
+                        : 'border-gray-100'}`}
         onClick={() => setOpen(o => !o)}
       >
         {/* Ligne nom */}
@@ -559,6 +591,35 @@ function ArmoireCard({ armoire, isAdmin, articles,
               <p className="text-xs text-gray-400">{armoire.description}</p>
             )}
           </div>
+          {/* Badges alertes */}
+          {alertes.total > 0 && (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {alertes.perimes > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  {alertes.perimes} périmé{alertes.perimes > 1 ? 's' : ''}
+                </span>
+              )}
+              {alertes.sousMin > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                  {alertes.sousMin} sous min.
+                </span>
+              )}
+              {alertes.bientot > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                  {alertes.bientot} à surveiller
+                </span>
+              )}
+            </div>
+          )}
+          {alertes.total === 0 && allStocks.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              OK
+            </span>
+          )}
         </div>
 
         {/* Ligne actions */}

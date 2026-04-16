@@ -60,6 +60,7 @@ export default function ControleLot() {
   const [checks, setChecks] = useState({});
 
   const [prenom, setPrenom] = useState('');
+  const [observation, setObservation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -120,6 +121,13 @@ export default function ControleLot() {
     }).join('\n');
   }, [issues, checks]);
 
+  const remarquesFinales = useMemo(() => {
+    const parts = [];
+    if (remarquesAuto) parts.push(remarquesAuto);
+    if (observation.trim()) parts.push(`Observation : ${observation.trim()}`);
+    return parts.join('\n') || null;
+  }, [remarquesAuto, observation]);
+
   const handleSubmit = async () => {
     if (!prenom.trim()) return;
     setSubmitting(true);
@@ -128,7 +136,7 @@ export default function ControleLot() {
         lot_token: token,
         controleur_prenom: prenom.trim(),
         statut,
-        remarques: remarquesAuto || null,
+        remarques: remarquesFinales,
         items: items.map(item => ({
           stock_id: item.stock_id,
           qty_reelle: checks[item.id]?.qty_reelle ?? item.qty_attendue,
@@ -196,7 +204,7 @@ export default function ControleLot() {
               qty_reelle: checks[item.id]?.qty_reelle ?? item.qty_attendue,
               expired: item.lots.some(l => isExpired(l.date_peremption)),
             })),
-            anomalies: remarquesAuto,
+            anomalies: remarquesFinales,
           })}
         >
           Télécharger le rapport PDF
@@ -438,6 +446,21 @@ export default function ControleLot() {
             onChange={e => setPrenom(e.target.value)}
             disabled={submitting}
             autoFocus
+          />
+        </div>
+
+        {/* Observation */}
+        <div className="bg-white rounded-2xl shadow p-5">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Observation <span className="text-gray-400 font-normal">(optionnel)</span>
+          </label>
+          <textarea
+            className="input text-sm resize-none"
+            rows={3}
+            placeholder="Ajouter une remarque, un commentaire ou une observation…"
+            value={observation}
+            onChange={e => setObservation(e.target.value)}
+            disabled={submitting}
           />
         </div>
 

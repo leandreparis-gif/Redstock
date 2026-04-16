@@ -33,38 +33,50 @@ export function useLots() {
   // ── LOTS ───────────────────────────────────────────────────────────
   const createLot = useCallback(async (payload) => {
     const { data } = await apiClient.post('/lots', payload);
-    await fetch();
+    setLots(prev => [...prev, { ...data, pochettes: [] }]);
     return data;
-  }, [fetch]);
+  }, []);
 
   const updateLot = useCallback(async (id, payload) => {
     const { data } = await apiClient.put(`/lots/${id}`, payload);
-    await fetch();
+    setLots(prev => prev.map(l => l.id === id ? { ...l, ...data } : l));
     return data;
-  }, [fetch]);
+  }, []);
 
   const deleteLot = useCallback(async (id) => {
     await apiClient.delete(`/lots/${id}`);
-    await fetch();
-  }, [fetch]);
+    setLots(prev => prev.filter(l => l.id !== id));
+  }, []);
 
   // ── POCHETTES ──────────────────────────────────────────────────────
   const createPochette = useCallback(async (lotId, payload) => {
     const { data } = await apiClient.post(`/lots/${lotId}/pochettes`, payload);
-    await fetch();
+    setLots(prev => prev.map(l =>
+      l.id === lotId
+        ? { ...l, pochettes: [...(l.pochettes || []), { ...data, stocks: [] }] }
+        : l
+    ));
     return data;
-  }, [fetch]);
+  }, []);
 
   const updatePochette = useCallback(async (lotId, id, payload) => {
     const { data } = await apiClient.put(`/lots/${lotId}/pochettes/${id}`, payload);
-    await fetch();
+    setLots(prev => prev.map(l =>
+      l.id === lotId
+        ? { ...l, pochettes: (l.pochettes || []).map(p => p.id === id ? { ...p, ...data } : p) }
+        : l
+    ));
     return data;
-  }, [fetch]);
+  }, []);
 
   const deletePochette = useCallback(async (lotId, id) => {
     await apiClient.delete(`/lots/${lotId}/pochettes/${id}`);
-    await fetch();
-  }, [fetch]);
+    setLots(prev => prev.map(l =>
+      l.id === lotId
+        ? { ...l, pochettes: (l.pochettes || []).filter(p => p.id !== id) }
+        : l
+    ));
+  }, []);
 
   // ── STOCK POCHETTE ────────────────────────────────────────────────
   const upsertStockPochette = useCallback(async (pochetteId, articleId, payload) => {
@@ -72,14 +84,41 @@ export function useLots() {
       `/lots/pochettes/${pochetteId}/stock/${articleId}`,
       payload
     );
-    await fetch();
+    setLots(prev => prev.map(l => ({
+      ...l,
+      pochettes: (l.pochettes || []).map(p => {
+        if (p.id !== pochetteId) return p;
+        const existing = (p.stocks || []).find(s => s.article_id === articleId);
+        if (existing) {
+          return {
+            ...p,
+            stocks: p.stocks.map(s =>
+              s.article_id === articleId
+                ? { ...s, ...data, article: s.article }
+                : s
+            ),
+          };
+        } else {
+          // Nouveau stock — l'article complet n'est pas dans la réponse, refetch
+          fetch();
+          return p;
+        }
+      }),
+    })));
     return data;
   }, [fetch]);
 
   const deleteStockPochette = useCallback(async (pochetteId, articleId) => {
     await apiClient.delete(`/lots/pochettes/${pochetteId}/stock/${articleId}`);
-    await fetch();
-  }, [fetch]);
+    setLots(prev => prev.map(l => ({
+      ...l,
+      pochettes: (l.pochettes || []).map(p =>
+        p.id === pochetteId
+          ? { ...p, stocks: (p.stocks || []).filter(s => s.article_id !== articleId) }
+          : p
+      ),
+    })));
+  }, []);
 
   // BE2: PATCH minimum requis — centralise dans le hook
   const updateStockMinimum = useCallback(async (pochetteId, articleId, quantiteMinimum) => {
@@ -87,6 +126,22 @@ export function useLots() {
       `/lots/pochettes/${pochetteId}/stock/${articleId}/minimum`,
       { quantite_minimum: quantiteMinimum }
     );
+    // Mise à jour locale du minimum
+    setLots(prev => prev.map(l => ({
+      ...l,
+      pochettes: (l.pochettes || []).map(p =>
+        p.id === pochetteId
+          ? {
+              ...p,
+              stocks: (p.stocks || []).map(s =>
+                s.article_id === articleId
+                  ? { ...s, quantite_minimum: quantiteMinimum }
+                  : s
+              ),
+            }
+          : p
+      ),
+    })));
     return data;
   }, []);
 

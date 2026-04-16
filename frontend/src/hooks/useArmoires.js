@@ -22,38 +22,50 @@ export function useArmoires() {
   // ── ARMOIRES ──────────────────────────────────────────────────────────
   const createArmoire = useCallback(async (payload) => {
     const { data } = await apiClient.post('/armoires', payload);
-    await fetch();
+    setArmoires(prev => [...prev, { ...data, tiroirs: [] }]);
     return data;
-  }, [fetch]);
+  }, []);
 
   const updateArmoire = useCallback(async (id, payload) => {
     const { data } = await apiClient.put(`/armoires/${id}`, payload);
-    await fetch();
+    setArmoires(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
     return data;
-  }, [fetch]);
+  }, []);
 
   const deleteArmoire = useCallback(async (id) => {
     await apiClient.delete(`/armoires/${id}`);
-    await fetch();
-  }, [fetch]);
+    setArmoires(prev => prev.filter(a => a.id !== id));
+  }, []);
 
   // ── TIROIRS ───────────────────────────────────────────────────────────
   const createTiroir = useCallback(async (armoireId, payload) => {
     const { data } = await apiClient.post(`/armoires/${armoireId}/tiroirs`, payload);
-    await fetch();
+    setArmoires(prev => prev.map(a =>
+      a.id === armoireId
+        ? { ...a, tiroirs: [...(a.tiroirs || []), { ...data, stocks: [] }] }
+        : a
+    ));
     return data;
-  }, [fetch]);
+  }, []);
 
   const updateTiroir = useCallback(async (armoireId, id, payload) => {
     const { data } = await apiClient.put(`/armoires/${armoireId}/tiroirs/${id}`, payload);
-    await fetch();
+    setArmoires(prev => prev.map(a =>
+      a.id === armoireId
+        ? { ...a, tiroirs: (a.tiroirs || []).map(t => t.id === id ? { ...t, ...data } : t) }
+        : a
+    ));
     return data;
-  }, [fetch]);
+  }, []);
 
   const deleteTiroir = useCallback(async (armoireId, id) => {
     await apiClient.delete(`/armoires/${armoireId}/tiroirs/${id}`);
-    await fetch();
-  }, [fetch]);
+    setArmoires(prev => prev.map(a =>
+      a.id === armoireId
+        ? { ...a, tiroirs: (a.tiroirs || []).filter(t => t.id !== id) }
+        : a
+    ));
+  }, []);
 
   // ── STOCK ─────────────────────────────────────────────────────────────
   const upsertStock = useCallback(async (tiroirId, articleId, payload) => {
@@ -61,14 +73,43 @@ export function useArmoires() {
       `/armoires/tiroirs/${tiroirId}/stock/${articleId}`,
       payload
     );
-    await fetch();
+    setArmoires(prev => prev.map(a => ({
+      ...a,
+      tiroirs: (a.tiroirs || []).map(t => {
+        if (t.id !== tiroirId) return t;
+        const existing = (t.stocks || []).find(s => s.article_id === articleId);
+        if (existing) {
+          // Mise à jour : conserver l'objet article existant
+          return {
+            ...t,
+            stocks: t.stocks.map(s =>
+              s.article_id === articleId
+                ? { ...s, ...data, article: s.article }
+                : s
+            ),
+          };
+        } else {
+          // Nouveau stock — on a besoin de l'article complet.
+          // data ne le contient pas, on fait un refetch ciblé.
+          fetch();
+          return t;
+        }
+      }),
+    })));
     return data;
   }, [fetch]);
 
   const deleteStock = useCallback(async (tiroirId, articleId) => {
     await apiClient.delete(`/armoires/tiroirs/${tiroirId}/stock/${articleId}`);
-    await fetch();
-  }, [fetch]);
+    setArmoires(prev => prev.map(a => ({
+      ...a,
+      tiroirs: (a.tiroirs || []).map(t =>
+        t.id === tiroirId
+          ? { ...t, stocks: (t.stocks || []).filter(s => s.article_id !== articleId) }
+          : t
+      ),
+    })));
+  }, []);
 
   return {
     armoires, loading, error, fetch,

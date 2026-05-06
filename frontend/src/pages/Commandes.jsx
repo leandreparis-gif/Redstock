@@ -332,11 +332,154 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander, user }) {
   );
 }
 
+// ─── Édition inline de la référence fournisseur ─────────────────────────────
+
+function RefFournisseurCell({ article, onSaved, compact = false }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(article?.reference_fournisseur || '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setVal(article?.reference_fournisseur || ''); }, [article?.reference_fournisseur]);
+
+  const save = async () => {
+    if (!article?.id) return;
+    const trimmed = val.trim();
+    if (trimmed === (article.reference_fournisseur || '')) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiClient.put(`/articles/${article.id}`, { reference_fournisseur: trimmed });
+      setEditing(false);
+      onSaved?.();
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Erreur enregistrement';
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          autoFocus
+          type="text"
+          maxLength={100}
+          className="input text-xs font-mono py-0.5 px-1.5 w-32"
+          value={val}
+          disabled={saving}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') { setVal(article?.reference_fournisseur || ''); setEditing(false); }
+          }}
+          onBlur={save}
+        />
+        {saving && <span className="text-[10px] text-gray-400">…</span>}
+      </div>
+    );
+  }
+
+  if (article?.reference_fournisseur) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="Cliquer pour modifier"
+        className={`text-xs font-mono ${compact ? 'bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded' : 'text-blue-700'} hover:underline cursor-pointer text-left`}
+      >
+        {article.reference_fournisseur}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Ajouter une référence fournisseur"
+      className="text-xs text-gray-400 hover:text-crf-rouge underline decoration-dotted cursor-pointer"
+    >
+      + ref
+    </button>
+  );
+}
+
 // ─── Onglet Commandes ────────────────────────────────────────────────────────
 
-function TabCommandes({ commandes, summary, total, loading, filters, updateFilters, setPage, recevoir, annuler, onCreate }) {
+function TabCommandes({ commandes, summary, total, loading, filters, updateFilters, setPage, recevoir, annuler, onCreate, onRefresh, user }) {
   const limit = 50;
   const totalPages = Math.ceil(total / limit);
+
+  // Export PDF des commandes en cours (filtre actuel applique)
+  const handleExportPDF = async () => {
+    const enAttente = commandes.filter(c => c.statut === 'EN_ATTENTE');
+    const list = enAttente.length > 0 ? enAttente : commandes;
+    if (list.length === 0) return;
+
+    let ul = {};
+    try {
+      const r = await apiClient.get('/unite-locale');
+      ul = Array.isArray(r.data) ? (r.data[0] || {}) : r.data;
+    } catch { /* fallback */ }
+
+    generateBonCommandePDF({
+      uniteLocaleNom: ul.nom || user?.unite_locale_nom || 'Croix-Rouge francaise',
+      uniteLocaleAdresse: ul.adresse || '',
+      uniteLocaleEmail: ul.email || '',
+      uniteLocaleTelephone: ul.telephone || '',
+      demandeur: user?.prenom || '',
+      items: list.map(c => ({
+        article_nom: c.article?.nom || '—',
+        reference_fournisseur: c.article?.reference_fournisseur,
+        code_barre: c.article?.code_barre,
+        categorie: c.article?.categorie,
+        stock_actuel: '—',
+        stock_minimum: c.article?.quantite_min,
+        manquant: '',
+        quantite: c.quantite_demandee,
+      })),
+      notes: enAttente.length > 0
+        ? `Bon généré depuis les commandes en attente (${enAttente.length} ligne${enAttente.length > 1 ? 's' : ''}).`
+        : '',
+    });
+  };
+
+  const handleExportCSV = () => {
+    const list = commandes.filter(c => c.statut === 'EN_ATTENTE');
+    const items = list.length > 0 ? list : commandes;
+    if (items.length === 0) return;
+    const rows = [
+      ['Reference fournisseur', 'Article', 'Categorie', 'Code-barres', 'Quantite', 'Statut', 'Demandeur', 'Date', 'Remarques'],
+      ...items.map(c => [
+        c.article?.reference_fournisseur || '',
+        c.article?.nom || '',
+        c.article?.categorie || '',
+        c.article?.code_barre || '',
+        c.quantite_demandee,
+        c.statut,
+        c.created_by?.prenom || '',
+        c.date_creation ? new Date(c.date_creation).toLocaleDateString('fr-FR') : '',
+        c.remarques || '',
+      ]),
+    ];
+    const csv = rows.map(r =>
+      r.map(c => {
+        const s = String(c ?? '');
+        return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(';')
+    ).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `commandes-en-cours-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-4">
@@ -350,7 +493,15 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
           <p className="text-xs text-gray-500 uppercase tracking-wide">Recues ce mois</p>
           <p className="text-2xl font-bold mt-1 text-green-600">{summary.recuesMois}</p>
         </div>
-        <div className="ml-auto flex gap-2 self-end">
+        <div className="ml-auto flex gap-2 self-end flex-wrap">
+          <button className="btn-secondary text-sm" onClick={handleExportPDF} disabled={commandes.length === 0}
+            title="Bon de commande PDF des commandes en attente">
+            📄 PDF
+          </button>
+          <button className="btn-secondary text-sm" onClick={handleExportCSV} disabled={commandes.length === 0}
+            title="Export CSV des commandes en attente">
+            ⬇ CSV
+          </button>
           <button className="btn-primary text-sm flex items-center gap-1.5" onClick={onCreate}>
             <IconPlus size={16} /> Nouvelle commande
           </button>
@@ -388,9 +539,10 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
                   <div className="text-xs text-gray-500">
                     Qte: {cmd.quantite_demandee} | Par: {cmd.created_by?.prenom} | {formatDate(cmd.date_creation)}
                   </div>
-                  {cmd.article?.reference_fournisseur && (
-                    <div><span className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Ref: {cmd.article.reference_fournisseur}</span></div>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase text-gray-400">Ref:</span>
+                    <RefFournisseurCell article={cmd.article} onSaved={onRefresh} compact />
+                  </div>
                   {cmd.remarques && <p className="text-xs text-gray-400">{cmd.remarques}</p>}
                   <div className="flex gap-2">
                     {cmd.statut === 'EN_ATTENTE' && (
@@ -427,7 +579,7 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
                   return (
                     <tr key={cmd.id}>
                       <td className="text-sm font-medium text-crf-texte">{cmd.article?.nom}</td>
-                      <td className="text-xs font-mono text-blue-700">{cmd.article?.reference_fournisseur || <span className="text-gray-300">—</span>}</td>
+                      <td><RefFournisseurCell article={cmd.article} onSaved={onRefresh} /></td>
                       <td className="text-sm text-gray-600">{cmd.quantite_demandee}</td>
                       <td>
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
@@ -479,6 +631,7 @@ export default function Commandes() {
     previsionnel, loadingPrev,
     updateFilters, setPage,
     create, createFromPrevisionnel, recevoir, annuler,
+    refresh, refreshPrev,
   } = useCommandes();
 
   const [tab, setTab] = useState('previsionnel');
@@ -556,6 +709,8 @@ export default function Commandes() {
           recevoir={recevoir}
           annuler={annuler}
           onCreate={() => setShowModal(true)}
+          onRefresh={() => { refresh(); refreshPrev(); }}
+          user={user}
         />
       )}
 

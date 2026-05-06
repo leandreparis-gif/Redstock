@@ -152,9 +152,9 @@ export default function Dashboard() {
     }
   };
 
-  // ── Charger les stats dashboard ───────────────────────────────────────────
-  const load = useCallback(async (offset = 0) => {
-    if (offset === 0) setLoading(true);
+  // ── Charger les stats dashboard (avec retry auto sur timeout/réseau) ─────
+  const load = useCallback(async (offset = 0, attempt = 0) => {
+    if (offset === 0 && attempt === 0) setLoading(true);
     setError(null);
     try {
       const { data: d } = await apiClient.get('/dashboard/stats', {
@@ -167,6 +167,13 @@ export default function Dashboard() {
         setAllLogs(prev => [...prev, ...d.activiteRecente]);
       }
     } catch (err) {
+      const isTransient = err.code === 'ECONNABORTED' || err.code === 'ERR_NETWORK' || !err.response;
+      if (isTransient && attempt < 1) {
+        console.warn('[Dashboard] retry après erreur transitoire', err.code);
+        // backoff court puis nouvel essai (cold start Supabase typique)
+        setTimeout(() => load(offset, attempt + 1), 1500);
+        return;
+      }
       console.error('[Dashboard]', err);
       setError(err);
       if (offset === 0) setData(null);

@@ -66,30 +66,38 @@ router.get('/stats', async (req, res) => {
     date30j.setDate(date30j.getDate() - 30);
 
     // ── Requêtes en parallèle (pharmacie uniquement) ──────────────────────
+    // Tout est fait en 1 seul Promise.all pour minimiser la latence cumulee.
+    // Plus de boucle N+1 sur les tiroirs.
     const [
       alertesActives,
+      countPeremption,
+      countStockBas,
       controles,
+      controlesTousTiroirs,
       stocksTiroir,
       articles,
       logs,
       totalLogs,
       plannings,
+      armoiresAvecTiroirs,
     ] = await Promise.all([
-      // 1. Alertes actives (count seulement — le détail vient de useAlertes)
-      prisma.alerte.count({
-        where: { ...ulFilter, statut: 'ACTIVE' },
-      }),
-      // 2. Contrôles des 30 derniers jours
+      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE' } }),
+      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'PEREMPTION' } }),
+      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'STOCK_BAS' } }),
+      // Contrôles des 30 derniers jours (tendance conformité)
       prisma.controle.findMany({
-        where: {
-          ...ulFilter,
-          type: 'TIROIR',
-          date_controle: { gte: date30j },
-        },
+        where: { ...ulFilter, type: 'TIROIR', date_controle: { gte: date30j } },
         select: { date_controle: true, statut: true },
         orderBy: { date_controle: 'desc' },
       }),
-      // 3. Stocks tiroirs (pharmacie) — champs nécessaires seulement
+      // TOUS les contrôles tiroirs (recents en premier) — pour calculer
+      // le dernier contrôle par tiroir en 1 seule requête au lieu de N+1.
+      prisma.controle.findMany({
+        where: { ...ulFilter, type: 'TIROIR' },
+        select: { reference_id: true, date_controle: true, statut: true },
+        orderBy: { date_controle: 'desc' },
+      }),
+      // Stocks tiroirs (pharmacie)
       prisma.stockTiroir.findMany({
         where: { ...ulFilter },
         select: {
@@ -98,20 +106,16 @@ router.get('/stats', async (req, res) => {
           article_id: true,
           article: { select: { nom: true, categorie: true, est_perimable: true, quantite_min: true } },
           tiroir: {
-            select: {
-              id: true,
-              nom: true,
-              armoire: { select: { nom: true } },
-            },
+            select: { id: true, nom: true, armoire: { select: { nom: true } } },
           },
         },
       }),
-      // 4. Articles (pour stock par catégorie — quantité min)
+      // Articles
       prisma.article.findMany({
         where: { ...ulFilter },
         select: { categorie: true, quantite_min: true },
       }),
-      // 5. Logs récents (avec pagination)
+      // Logs récents
       prisma.log.findMany({
         where: { ...ulFilter },
         orderBy: { created_at: 'desc' },
@@ -119,24 +123,18 @@ router.get('/stats', async (req, res) => {
         skip: logOffset,
         select: { action: true, details: true, user_prenom: true, user_login: true, created_at: true },
       }),
-      // 6. Total logs (pour savoir s'il y a plus)
+      // Total logs
       prisma.log.count({ where: { ...ulFilter } }),
-      // 7. Plannings contrôle actifs
+      // Plannings contrôle actifs
       prisma.planningControle.findMany({
         where: { ...ulFilter, actif: true },
-        select: {
-          type_cible: true,
-          periodicite_valeur: true,
-          periodicite_unite: true,
-        },
+        select: { type_cible: true, periodicite_valeur: true, periodicite_unite: true },
       }),
-    ]);
-
-    // ── KPIs ────────────────────────────────────────────────────────────────
-    // Compter péremptions et stocks bas depuis les alertes
-    const [countPeremption, countStockBas] = await Promise.all([
-      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'PEREMPTION' } }),
-      prisma.alerte.count({ where: { ...ulFilter, statut: 'ACTIVE', type: 'STOCK_BAS' } }),
+      // Armoires + tiroirs (pour prochains contrôles)
+      prisma.armoire.findMany({
+        where: { ...ulFilter },
+        select: { nom: true, tiroirs: { select: { id: true, nom: true } } },
+      }),
     ]);
 
     const totalControles = controles.length;
@@ -213,36 +211,27 @@ router.get('/stats', async (req, res) => {
       pourcentage: v.minimum > 0 ? Math.round((v.total / v.minimum) * 100) : 100,
     })).sort((a, b) => a.pourcentage - b.pourcentage);
 
-    // ── Prochains contrôles (tiroirs uniquement) ────────────────────────────
+    // ── Prochains contrôles (tiroirs) — sans N+1 ───────────────────────────
     const prochainsControles = [];
     const tiroirPlanning = plannings.find(p =>
       p.type_cible === 'TIROIR' || p.type_cible === 'ALL'
     );
 
     if (tiroirPlanning) {
-      // Récupérer tous les tiroirs de l'UL
-      const armoires = await prisma.armoire.findMany({
-        where: { ...ulFilter },
-        select: {
-          nom: true,
-          tiroirs: { select: { id: true, nom: true } },
-        },
-      });
+      // Index : reference_id (tiroir) -> dernier contrôle (les contrôles sont déjà triés desc)
+      const lastByTiroir = {};
+      for (const c of controlesTousTiroirs) {
+        if (!lastByTiroir[c.reference_id]) lastByTiroir[c.reference_id] = c;
+      }
 
-      for (const armoire of armoires) {
+      for (const armoire of armoiresAvecTiroirs) {
         for (const tiroir of armoire.tiroirs) {
-          const dernierControle = await prisma.controle.findFirst({
-            where: { type: 'TIROIR', reference_id: tiroir.id, ...ulFilter },
-            orderBy: { date_controle: 'desc' },
-            select: { date_controle: true, statut: true },
-          });
-
+          const dernierControle = lastByTiroir[tiroir.id] || null;
           const nextDue = computeNextDue(
             dernierControle?.date_controle || null,
             tiroirPlanning.periodicite_valeur,
             tiroirPlanning.periodicite_unite,
           );
-
           prochainsControles.push({
             nom: `${armoire.nom} > ${tiroir.nom}`,
             dernierControle: dernierControle?.date_controle || null,
@@ -253,7 +242,6 @@ router.get('/stats', async (req, res) => {
         }
       }
 
-      // Trier : en retard d'abord, puis par date
       prochainsControles.sort((a, b) => {
         if (a.enRetard !== b.enRetard) return a.enRetard ? -1 : 1;
         return new Date(a.prochainControle) - new Date(b.prochainControle);

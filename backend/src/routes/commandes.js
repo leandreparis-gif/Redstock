@@ -10,7 +10,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 const INCLUDE_RELATIONS = {
-  article: { select: { id: true, nom: true, categorie: true, quantite_min: true } },
+  article: { select: { id: true, nom: true, categorie: true, quantite_min: true, reference_fournisseur: true, code_barre: true } },
   created_by: { select: { id: true, prenom: true, login: true } },
 };
 
@@ -18,46 +18,71 @@ const INCLUDE_RELATIONS = {
 
 /**
  * GET /api/commandes/previsionnel
- * Articles en alerte STOCK_BAS avec stock actuel, minimum et quantite suggeree.
+ * TOUS les articles dont le stock total (somme des tiroirs) est < quantite_min,
+ * avec quantité suggérée et statut "commande déjà en cours".
+ *
+ * On ne dépend plus de la table Alerte — on calcule directement depuis les stocks
+ * pour garantir l'exhaustivité (même si la génération d'alertes a été oubliée).
  */
 router.get('/previsionnel', async (req, res) => {
   try {
     const ulFilter = getUlFilter(req);
 
-    const alertes = await prisma.alerte.findMany({
-      where: { ...ulFilter, statut: 'ACTIVE', type: 'STOCK_BAS', article_id: { not: null } },
-      include: { article: { select: { id: true, nom: true, categorie: true, quantite_min: true } } },
+    // 1. Tous les articles de l'UL
+    const articles = await prisma.article.findMany({
+      where: { ...ulFilter },
+      select: {
+        id: true,
+        nom: true,
+        categorie: true,
+        quantite_min: true,
+        reference_fournisseur: true,
+        code_barre: true,
+      },
     });
 
-    const items = [];
-    for (const alerte of alertes) {
-      // Stock actuel (somme des tiroirs)
-      const agg = await prisma.stockTiroir.aggregate({
-        where: { article_id: alerte.article_id, ...ulFilter },
-        _sum: { quantite_actuelle: true },
-      });
-      const stockActuel = agg._sum.quantite_actuelle || 0;
+    if (articles.length === 0) return res.json([]);
 
-      // Commande deja en cours ?
-      const commandeExistante = await prisma.commande.findFirst({
-        where: {
-          article_id: alerte.article_id,
-          ...ulFilter,
-          statut: { in: ['EN_ATTENTE'] },
-        },
-      });
+    // 2. Agrégation des stocks tiroirs par article (1 seule requête)
+    const aggs = await prisma.stockTiroir.groupBy({
+      by: ['article_id'],
+      where: { ...ulFilter },
+      _sum: { quantite_actuelle: true },
+    });
+    const stockByArticle = Object.fromEntries(
+      aggs.map((a) => [a.article_id, a._sum.quantite_actuelle || 0])
+    );
 
-      items.push({
-        alerte_id: alerte.id,
-        article_id: alerte.article.id,
-        article_nom: alerte.article.nom,
-        categorie: alerte.article.categorie,
-        stock_actuel: stockActuel,
-        stock_minimum: alerte.article.quantite_min,
-        quantite_suggeree: Math.max(alerte.article.quantite_min - stockActuel, 1),
-        commande_existante: !!commandeExistante,
+    // 3. Commandes en cours (1 seule requête)
+    const commandesEnCours = await prisma.commande.findMany({
+      where: { ...ulFilter, statut: 'EN_ATTENTE' },
+      select: { article_id: true },
+    });
+    const enCoursSet = new Set(commandesEnCours.map((c) => c.article_id));
+
+    // 4. Filtrer + composer la réponse — uniquement ceux sous le minimum
+    const items = articles
+      .map((a) => {
+        const stockActuel = stockByArticle[a.id] || 0;
+        return {
+          article_id: a.id,
+          article_nom: a.nom,
+          categorie: a.categorie,
+          reference_fournisseur: a.reference_fournisseur || null,
+          code_barre: a.code_barre || null,
+          stock_actuel: stockActuel,
+          stock_minimum: a.quantite_min,
+          manquant: Math.max(a.quantite_min - stockActuel, 0),
+          quantite_suggeree: Math.max(a.quantite_min - stockActuel, 1),
+          commande_existante: enCoursSet.has(a.id),
+        };
+      })
+      .filter((i) => i.stock_actuel < i.stock_minimum)
+      .sort((a, b) => {
+        // Manquants d'abord (plus gros écart en premier), puis nom
+        if (b.manquant !== a.manquant) return b.manquant - a.manquant;
+        return a.article_nom.localeCompare(b.article_nom);
       });
-    }
 
     res.json(items);
   } catch (err) {

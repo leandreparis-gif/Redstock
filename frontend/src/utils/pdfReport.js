@@ -285,6 +285,155 @@ export function generateMainCourante({
   doc.save(`main_courante_${dateSuffix}.pdf`);
 }
 
+// ─── Bon de commande ────────────────────────────────────────────────────────
+
+/**
+ * Génère un bon de commande PDF prêt à transmettre au magasin.
+ *
+ * @param {Object} opts
+ * @param {string} opts.uniteLocaleNom - Nom de l'UL (en-tête)
+ * @param {string} [opts.uniteLocaleAdresse]
+ * @param {string} [opts.uniteLocaleEmail]
+ * @param {string} [opts.uniteLocaleTelephone]
+ * @param {string} [opts.demandeur] - Prénom de la personne qui passe la commande
+ * @param {Array} opts.items - [{ article_nom, reference_fournisseur, code_barre, categorie, stock_actuel, stock_minimum, manquant, quantite }]
+ * @param {string} [opts.notes] - Texte libre additionnel
+ */
+export function generateBonCommandePDF({
+  uniteLocaleNom,
+  uniteLocaleAdresse,
+  uniteLocaleEmail,
+  uniteLocaleTelephone,
+  demandeur,
+  items,
+  notes,
+}) {
+  const doc = new jsPDF();
+  const dateNow = new Date();
+  const numCommande = `BC-${dateNow.getFullYear()}${String(dateNow.getMonth() + 1).padStart(2, '0')}${String(dateNow.getDate()).padStart(2, '0')}-${String(dateNow.getHours()).padStart(2, '0')}${String(dateNow.getMinutes()).padStart(2, '0')}`;
+
+  let y = drawHeader(doc, 'Bon de commande', uniteLocaleNom || 'Croix-Rouge francaise');
+
+  // Bloc infos UL (gauche) + n° commande (droite)
+  doc.setTextColor(...GRIS_TEXTE);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Demandeur', 15, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(uniteLocaleNom || '—', 15, y + 5);
+  if (uniteLocaleAdresse) doc.text(uniteLocaleAdresse, 15, y + 10);
+  if (uniteLocaleTelephone) doc.text(`Tel : ${uniteLocaleTelephone}`, 15, y + 15);
+  if (uniteLocaleEmail) doc.text(`Email : ${uniteLocaleEmail}`, 15, y + 20);
+  if (demandeur) doc.text(`Etabli par : ${demandeur}`, 15, y + 25);
+
+  // Bloc à droite : n° + date
+  doc.setFont('helvetica', 'bold');
+  doc.text('N° commande', 195, y, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.text(numCommande, 195, y + 5, { align: 'right' });
+  doc.setFont('helvetica', 'bold');
+  doc.text('Date', 195, y + 12, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.text(fmtDate(dateNow), 195, y + 17, { align: 'right' });
+
+  y += 35;
+
+  // Total articles + total quantités
+  const totalArticles = items.length;
+  const totalQuantite = items.reduce((s, i) => s + (Number(i.quantite) || 0), 0);
+
+  doc.setFillColor(245, 245, 245);
+  doc.roundedRect(15, y, 180, 14, 2, 2, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(...GRIS_TEXTE);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${totalArticles}`, 25, y + 6);
+  doc.text(`${totalQuantite}`, 75, y + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GRIS_CLAIR);
+  doc.text(`reference${totalArticles > 1 ? 's' : ''}`, 25, y + 11);
+  doc.text(`unite${totalQuantite > 1 ? 's' : ''} au total`, 75, y + 11);
+
+  y += 20;
+
+  // Tableau des articles
+  const head = [['#', 'Reference', 'Article', 'Categorie', 'Stock', 'Min', 'Qte commande']];
+  const body = items.map((i, idx) => [
+    String(idx + 1),
+    i.reference_fournisseur || (i.code_barre ? `(EAN ${i.code_barre})` : '—'),
+    i.article_nom,
+    i.categorie || '—',
+    String(i.stock_actuel ?? '—'),
+    String(i.stock_minimum ?? '—'),
+    String(i.quantite),
+  ]);
+
+  doc.autoTable({
+    startY: y,
+    head,
+    body,
+    styles: { fontSize: 9, cellPadding: 2.5, valign: 'middle' },
+    headStyles: { fillColor: CRF_ROUGE, textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 8 },
+      1: { fontStyle: 'bold', cellWidth: 35 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 28 },
+      4: { halign: 'center', cellWidth: 14 },
+      5: { halign: 'center', cellWidth: 12 },
+      6: { halign: 'center', fontStyle: 'bold', cellWidth: 22, fillColor: [254, 242, 242] },
+    },
+    margin: { left: 15, right: 15 },
+    didDrawPage(data) {
+      // Si nouvelle page, redessiner header simplifié
+      if (data.pageNumber > 1) {
+        doc.setFillColor(...CRF_ROUGE);
+        doc.rect(0, 0, 210, 12, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Bon de commande ${numCommande} (suite)`, 15, 8);
+      }
+    },
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // Notes
+  if (notes && notes.trim()) {
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...GRIS_TEXTE);
+    doc.text('Notes :', 15, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(notes, 180);
+    doc.text(lines, 15, y);
+    y += lines.length * 4 + 4;
+  }
+
+  // Encadré signature
+  if (y > 245) { doc.addPage(); y = 20; }
+  y = Math.max(y, 240);
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.rect(15, y, 85, 30);
+  doc.rect(110, y, 85, 30);
+  doc.setFontSize(8);
+  doc.setTextColor(...GRIS_CLAIR);
+  doc.text('Signature demandeur', 17, y + 4);
+  doc.text('Visa magasin / livraison', 112, y + 4);
+
+  drawFooter(doc);
+
+  const dateSuffix = fmtDate(dateNow).replace(/\//g, '-');
+  doc.save(`bon_commande_${dateSuffix}_${numCommande}.pdf`);
+  return numCommande;
+}
+
 // ─── Export PDF du tableau de bord ──────────────────────────────────────────
 
 export function generateDashboardPDF({

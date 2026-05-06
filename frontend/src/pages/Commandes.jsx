@@ -3,7 +3,9 @@ import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { IconPlus } from '../components/Icons';
 import { useCommandes } from '../hooks/useCommandes';
+import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
+import { generateBonCommandePDF } from '../utils/pdfReport';
 
 const STATUT_STYLES = {
   EN_ATTENTE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente' },
@@ -72,16 +74,22 @@ function CommandeModal({ onSave, onClose, saving }) {
 
 // ─── Onglet Previsionnel ─────────────────────────────────────────────────────
 
-function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
+function TabPrevisionnel({ previsionnel, loadingPrev, onCommander, user }) {
   const [selected, setSelected] = useState({});
   const [quantities, setQuantities] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Init quantities suggerees
+  // Init quantites suggerees + presection automatique de tous les articles sous le minimum
+  // (ceux qui n'ont pas deja une commande en cours)
   useEffect(() => {
     const q = {};
-    previsionnel.forEach(item => { q[item.article_id] = item.quantite_suggeree; });
+    const sel = {};
+    previsionnel.forEach(item => {
+      q[item.article_id] = item.quantite_suggeree;
+      if (!item.commande_existante) sel[item.article_id] = true;
+    });
     setQuantities(q);
+    setSelected(sel);
   }, [previsionnel]);
 
   const toggleSelect = (articleId) => {
@@ -118,6 +126,69 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
   const available = previsionnel.filter(i => !i.commande_existante);
   const allSelected = available.length > 0 && available.every(i => selected[i.article_id]);
 
+  // Export PDF du bon de commande (a envoyer par mail au magasin)
+  const handleExportPDF = async () => {
+    const items = (selectedItems.length > 0 ? selectedItems : available);
+    if (items.length === 0) return;
+
+    // Recupere les coordonnees completes de l'UL pour l'en-tete
+    let ul = {};
+    try {
+      const r = await apiClient.get('/unite-locale');
+      ul = Array.isArray(r.data) ? (r.data[0] || {}) : r.data;
+    } catch { /* fallback sur user */ }
+
+    generateBonCommandePDF({
+      uniteLocaleNom: ul.nom || user?.unite_locale_nom || 'Croix-Rouge francaise',
+      uniteLocaleAdresse: ul.adresse || '',
+      uniteLocaleEmail: ul.email || '',
+      uniteLocaleTelephone: ul.telephone || '',
+      demandeur: user?.prenom || '',
+      items: items.map(i => ({
+        article_nom: i.article_nom,
+        reference_fournisseur: i.reference_fournisseur,
+        code_barre: i.code_barre,
+        categorie: i.categorie,
+        stock_actuel: i.stock_actuel,
+        stock_minimum: i.stock_minimum,
+        manquant: i.manquant,
+        quantite: quantities[i.article_id] || i.quantite_suggeree,
+      })),
+    });
+  };
+
+  // Export CSV de la liste a commander pour transmission au magasin
+  const handleExportCSV = () => {
+    const items = (selectedItems.length > 0 ? selectedItems : available);
+    if (items.length === 0) return;
+    const rows = [
+      ['Reference fournisseur', 'Article', 'Categorie', 'Code-barres', 'Stock actuel', 'Minimum', 'Manque', 'Quantite a commander'],
+      ...items.map(i => [
+        i.reference_fournisseur || '',
+        i.article_nom,
+        i.categorie,
+        i.code_barre || '',
+        i.stock_actuel,
+        i.stock_minimum,
+        i.manquant,
+        quantities[i.article_id] || i.quantite_suggeree,
+      ]),
+    ];
+    const csv = rows.map(r =>
+      r.map(c => {
+        const s = String(c ?? '');
+        return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(';')
+    ).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `commande-pharmasecours-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loadingPrev) {
     return <div className="card text-center py-8 text-gray-400"><p className="text-sm">Chargement...</p></div>;
   }
@@ -138,13 +209,21 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
         <>
           {/* Action bar */}
           {selectedItems.length > 0 && (
-            <div className="flex items-center gap-3 bg-crf-rouge/5 border border-crf-rouge/20 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3 bg-crf-rouge/5 border border-crf-rouge/20 rounded-xl px-4 py-3 flex-wrap">
               <span className="text-sm font-medium text-crf-texte">
                 {selectedItems.length} article{selectedItems.length > 1 ? 's' : ''} selectionne{selectedItems.length > 1 ? 's' : ''}
               </span>
-              <button className="btn-primary text-sm ml-auto" onClick={handleCommander} disabled={submitting}>
-                {submitting ? 'Creation...' : 'Commander les articles selectionnes'}
-              </button>
+              <div className="ml-auto flex gap-2 flex-wrap">
+                <button className="btn-secondary text-sm" onClick={handleExportPDF} title="Generer un bon de commande PDF a envoyer au magasin">
+                  📄 Bon de commande PDF
+                </button>
+                <button className="btn-secondary text-sm" onClick={handleExportCSV} title="Telecharger un CSV pour le magasin">
+                  ⬇ Export CSV
+                </button>
+                <button className="btn-primary text-sm" onClick={handleCommander} disabled={submitting}>
+                  {submitting ? 'Creation...' : 'Commander les articles selectionnes'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -166,7 +245,18 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
                     <span>{item.categorie}</span>
                     <span className="mx-2">|</span>
                     <span className="text-red-600 font-medium">Stock: {item.stock_actuel}/{item.stock_minimum}</span>
+                    {item.manquant > 0 && (
+                      <>
+                        <span className="mx-2">|</span>
+                        <span className="text-orange-600">Manque {item.manquant}</span>
+                      </>
+                    )}
                   </div>
+                  {item.reference_fournisseur && (
+                    <div className="pl-6">
+                      <span className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Ref: {item.reference_fournisseur}</span>
+                    </div>
+                  )}
                   {!disabled && (
                     <div className="pl-6 flex items-center gap-2">
                       <span className="text-xs text-gray-500">Qte:</span>
@@ -190,9 +280,11 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
                       className="rounded border-gray-300 text-crf-rouge focus:ring-crf-rouge" />
                   </th>
                   <th>Article</th>
+                  <th>Ref. fourn.</th>
                   <th>Categorie</th>
                   <th>Stock actuel</th>
                   <th>Minimum</th>
+                  <th>Manque</th>
                   <th>Qte a commander</th>
                   <th></th>
                 </tr>
@@ -209,9 +301,11 @@ function TabPrevisionnel({ previsionnel, loadingPrev, onCommander }) {
                           className="rounded border-gray-300 text-crf-rouge focus:ring-crf-rouge" />
                       </td>
                       <td className="text-sm font-medium text-crf-texte">{item.article_nom}</td>
+                      <td className="text-xs font-mono text-blue-700">{item.reference_fournisseur || <span className="text-gray-300">—</span>}</td>
                       <td className="text-sm text-gray-600">{item.categorie}</td>
                       <td className="text-sm font-semibold text-red-600">{item.stock_actuel}</td>
                       <td className="text-sm text-gray-600">{item.stock_minimum}</td>
+                      <td className="text-sm font-semibold text-orange-600">{item.manquant}</td>
                       <td>
                         {disabled ? (
                           <span className="text-sm text-gray-400">—</span>
@@ -294,6 +388,9 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
                   <div className="text-xs text-gray-500">
                     Qte: {cmd.quantite_demandee} | Par: {cmd.created_by?.prenom} | {formatDate(cmd.date_creation)}
                   </div>
+                  {cmd.article?.reference_fournisseur && (
+                    <div><span className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Ref: {cmd.article.reference_fournisseur}</span></div>
+                  )}
                   {cmd.remarques && <p className="text-xs text-gray-400">{cmd.remarques}</p>}
                   <div className="flex gap-2">
                     {cmd.statut === 'EN_ATTENTE' && (
@@ -315,6 +412,7 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
               <thead>
                 <tr>
                   <th>Article</th>
+                  <th>Ref. fourn.</th>
                   <th>Qte</th>
                   <th>Statut</th>
                   <th>Demandeur</th>
@@ -329,6 +427,7 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
                   return (
                     <tr key={cmd.id}>
                       <td className="text-sm font-medium text-crf-texte">{cmd.article?.nom}</td>
+                      <td className="text-xs font-mono text-blue-700">{cmd.article?.reference_fournisseur || <span className="text-gray-300">—</span>}</td>
                       <td className="text-sm text-gray-600">{cmd.quantite_demandee}</td>
                       <td>
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
@@ -374,6 +473,7 @@ function TabCommandes({ commandes, summary, total, loading, filters, updateFilte
 // ─── Page principale avec onglets ────────────────────────────────────────────
 
 export default function Commandes() {
+  const { user } = useAuth();
   const {
     commandes, summary, total, loading, filters,
     previsionnel, loadingPrev,
@@ -440,6 +540,7 @@ export default function Commandes() {
           previsionnel={previsionnel}
           loadingPrev={loadingPrev}
           onCommander={handleCommanderPrev}
+          user={user}
         />
       )}
 

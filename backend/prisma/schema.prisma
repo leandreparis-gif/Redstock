@@ -85,6 +85,7 @@ model Article {
   nom            String
   description    String?
   code_barre     String?  @unique
+  reference_fournisseur String?  // Référence/code fournisseur pour passer la commande au magasin
   photo_url      String?
   quantite_min   Int      @default(1)
   categorie      String

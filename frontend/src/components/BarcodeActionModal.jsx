@@ -393,47 +393,29 @@ export default function BarcodeActionModal({ data, onClose, onDone }) {
     }
   };
 
-  // ── Transferer vers un lot ────────────────────────────────────────────
+  // ── Transferer vers un lot (atomique cote serveur) ────────────────────
   const handleTransfer = async ({ stock, srcLot, quantite, destPochetteId }) => {
     setLoading(true);
     try {
-      // 1. Reduire le stock tiroir
-      const newLots = (stock.lots || []).map(l =>
-        l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-          ? { ...l, quantite: l.quantite - quantite }
-          : l
-      ).filter(l => l.quantite > 0);
-      const newQty = newLots.reduce((s, l) => s + (l.quantite || 0), 0);
-      await apiClient.put(`/armoires/tiroirs/${stock.tiroir_id}/stock/${article.id}`, {
-        quantite_actuelle: newQty,
-        lots: newLots,
+      await apiClient.post(`/lots/pochettes/${destPochetteId}/transfer-from-tiroir`, {
+        tiroir_id: stock.tiroir_id,
+        article_id: article.id,
+        lot_label: srcLot.label || '',
+        lot_date_peremption: srcLot.date_peremption || null,
+        quantite: Number(quantite),
       });
-
-      // 2. Ajouter au stock pochette
-      const pochette = lotsData.flatMap(l => l.pochettes || []).find(p => p.id === destPochetteId);
-      const existingStock = (pochette?.stocks || []).find(s => s.article_id === article.id);
-      const existingLots = existingStock?.lots || [];
-      const existIdx = existingLots.findIndex(
-        l => l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-      );
-      let newPochetteLots;
-      if (existIdx >= 0) {
-        newPochetteLots = existingLots.map((l, i) =>
-          i === existIdx ? { ...l, quantite: (l.quantite || 0) + quantite } : l
-        );
-      } else {
-        newPochetteLots = [...existingLots, { ...srcLot, quantite }];
-      }
-      const newPochetteQty = newPochetteLots.reduce((s, l) => s + (l.quantite || 0), 0);
-      await apiClient.put(`/lots/pochettes/${destPochetteId}/stock/${article.id}`, {
-        quantite_actuelle: newPochetteQty,
-        lots: newPochetteLots,
-      });
-
-      showToast(`${quantite}x ${article.nom} transfere(s)`);
+      showToast(`${quantite}x ${article.nom} transféré(s) vers le lot`);
       setTimeout(() => { onDone(); }, 1000);
     } catch (e) {
-      showToast(e.response?.data?.error || 'Erreur', 'error');
+      const code = e.response?.data?.code;
+      const msg = e.response?.data?.error || e.message || 'Erreur lors du transfert';
+      if (code === 'BATCH_EXPIRED') {
+        showToast('Batch périmé — transfert refusé.', 'error');
+      } else if (code === 'INSUFFICIENT_QTY') {
+        showToast('Quantité insuffisante en stock.', 'error');
+      } else {
+        showToast(msg, 'error');
+      }
     } finally {
       setLoading(false);
     }

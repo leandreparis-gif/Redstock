@@ -20,6 +20,7 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
     quantite_min: initial?.quantite_min || 1,
     est_perimable: initial?.est_perimable ?? true,
     code_barre: initial?.code_barre || '',
+    reference_fournisseur: initial?.reference_fournisseur || '',
     photo_url: initial?.photo_url || '',
   });
   const [uploading, setUploading] = useState(false);
@@ -67,6 +68,16 @@ function ArticleModal({ initial, onSave, onClose, loading }) {
           onChange={e => setForm(f => ({ ...f, code_barre: e.target.value }))} />
         <p className="text-xs text-gray-400 mt-1">
           {initial ? 'Douchette USB ou saisie manuelle' : 'Si vide, un code EAN-13 sera genere automatiquement'}
+        </p>
+      </div>
+      <div>
+        <label className="label">Référence fournisseur</label>
+        <input className="input font-mono" value={form.reference_fournisseur}
+          placeholder="ex: REF-12345 / SKU magasin"
+          maxLength={100}
+          onChange={e => setForm(f => ({ ...f, reference_fournisseur: e.target.value }))} />
+        <p className="text-xs text-gray-400 mt-1">
+          Référence à transmettre au magasin pour identifier précisément l'article lors d'une commande
         </p>
       </div>
       <div>
@@ -253,7 +264,8 @@ function AdminArticles() {
     return articles.filter(a =>
       (a.nom || '').toLowerCase().includes(q) ||
       (a.categorie || '').toLowerCase().includes(q) ||
-      (a.code_barre || '').toLowerCase().includes(q)
+      (a.code_barre || '').toLowerCase().includes(q) ||
+      (a.reference_fournisseur || '').toLowerCase().includes(q)
     );
   }, [articles, search]);
 
@@ -334,6 +346,9 @@ function AdminArticles() {
                     {a.code_barre && (
                       <span className="text-xs font-mono text-gray-400">{a.code_barre}</span>
                     )}
+                    {a.reference_fournisseur && (
+                      <span className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Ref: {a.reference_fournisseur}</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0 mt-0.5">
@@ -347,7 +362,7 @@ function AdminArticles() {
           {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto card p-0">
             <table className="table-auto">
-              <thead><tr><th></th><th>Nom</th><th>Categorie</th><th>Code-barres</th><th>Qte min.</th><th>Perimable</th><th></th></tr></thead>
+              <thead><tr><th></th><th>Nom</th><th>Categorie</th><th>Code-barres</th><th>Ref. fourn.</th><th>Qte min.</th><th>Perimable</th><th></th></tr></thead>
               <tbody>
                 {filteredArticles.map(a => (
                   <tr key={a.id}>
@@ -362,6 +377,7 @@ function AdminArticles() {
                     <td className="font-medium">{a.nom}</td>
                     <td>{a.categorie}</td>
                     <td className="font-mono text-xs text-gray-500">{a.code_barre || '—'}</td>
+                    <td className="font-mono text-xs text-blue-700">{a.reference_fournisseur || '—'}</td>
                     <td>{a.quantite_min}</td>
                     <td>{a.est_perimable ? '✓' : '—'}</td>
                     <td className="text-right">

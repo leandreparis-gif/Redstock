@@ -836,81 +836,140 @@ function TransfertModal({ stock, tiroirId, lotsData, onTransfer, onClose, loadin
   const [qty, setQty]               = useState(1);
   const [destLotId, setDestLotId]   = useState('');
   const [destPochetteId, setDestPochetteId] = useState('');
+  const [step, setStep]             = useState('form'); // 'form' | 'confirm'
 
   const srcLot  = sourceLots[srcIdx];
   const maxQty  = srcLot?.quantite || 0;
   const destLot = lotsData.find(l => l.id === destLotId);
   const pochettes = destLot?.pochettes || [];
+  const destPochette = pochettes.find(p => p.id === destPochetteId);
 
-  const canSubmit = srcLot && qty > 0 && qty <= maxQty && destPochetteId;
+  // Statut péremption du batch sélectionné
+  const peremptionStatus = (() => {
+    if (!srcLot?.date_peremption) return { kind: 'none' };
+    const exp = new Date(srcLot.date_peremption);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = Math.floor((exp - today) / (1000 * 60 * 60 * 24));
+    if (days < 0)  return { kind: 'expired', days };
+    if (days <= 7) return { kind: 'critical', days };
+    if (days <= 30) return { kind: 'warning', days };
+    return { kind: 'ok', days };
+  })();
+
+  const isExpired = peremptionStatus.kind === 'expired';
+  const canSubmit = srcLot && qty > 0 && qty <= maxQty && destPochetteId && !isExpired;
 
   return (
     <Modal title={`Transférer — ${stock.article.nom}`} onClose={onClose}>
-      <p className="text-xs text-gray-500">
-        Déplacez des unités de la pharmacie vers une pochette de lot.
-      </p>
+      {step === 'form' && (
+        <>
+          <p className="text-xs text-gray-500">
+            Déplacez des unités de la pharmacie vers une pochette de lot.
+          </p>
 
-      {/* Source lot */}
-      <div>
-        <label className="label">Lot source *</label>
-        {sourceLots.length === 0 ? (
-          <p className="text-sm text-red-500">Aucun lot disponible dans ce stock.</p>
-        ) : (
-          <select className="select" value={srcIdx}
-            onChange={e => { setSrcIdx(Number(e.target.value)); setQty(1); }}>
-            {sourceLots.map((l, i) => (
-              <option key={i} value={i}>
-                {l.label}{l.date_peremption ? ` — exp. ${new Date(l.date_peremption).toLocaleDateString('fr-FR')}` : ''} (×{l.quantite})
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+          {/* Source lot */}
+          <div>
+            <label className="label">Lot source *</label>
+            {sourceLots.length === 0 ? (
+              <p className="text-sm text-red-500">Aucun lot disponible dans ce stock.</p>
+            ) : (
+              <select className="select" value={srcIdx}
+                onChange={e => { setSrcIdx(Number(e.target.value)); setQty(1); }}>
+                {sourceLots.map((l, i) => (
+                  <option key={i} value={i}>
+                    {l.label}{l.date_peremption ? ` — exp. ${new Date(l.date_peremption).toLocaleDateString('fr-FR')}` : ''} (×{l.quantite})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-      {/* Quantité */}
-      {srcLot && (
-        <div>
-          <label className="label">Quantité à transférer * <span className="font-normal text-gray-400">(max {maxQty})</span></label>
-          <input type="number" className="input" min={1} max={maxQty}
-            value={qty} onChange={e => setQty(Math.min(maxQty, Math.max(1, parseInt(e.target.value) || 1)))} />
-        </div>
-      )}
-
-      {/* Destination */}
-      <div>
-        <label className="label">Lot destination *</label>
-        <select className="select" value={destLotId}
-          onChange={e => { setDestLotId(e.target.value); setDestPochetteId(''); }}>
-          <option value="">Choisir un lot…</option>
-          {lotsData.map(l => (
-            <option key={l.id} value={l.id}>{l.nom}</option>
-          ))}
-        </select>
-      </div>
-
-      {destLotId && (
-        <div>
-          <label className="label">Pochette *</label>
-          <select className="select" value={destPochetteId}
-            onChange={e => setDestPochetteId(e.target.value)}>
-            <option value="">Choisir une pochette…</option>
-            {pochettes.map(p => (
-              <option key={p.id} value={p.id}>{p.nom}</option>
-            ))}
-          </select>
-          {pochettes.length === 0 && (
-            <p className="text-xs text-gray-400 mt-1">Ce lot n'a pas encore de pochettes.</p>
+          {/* Avertissement péremption */}
+          {srcLot && peremptionStatus.kind === 'expired' && (
+            <div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200">
+              ⛔ Ce batch est <strong>périmé</strong> depuis {Math.abs(peremptionStatus.days)} j. Transfert bloqué — retirez-le via la gestion des péremptions.
+            </div>
           )}
-        </div>
+          {srcLot && peremptionStatus.kind === 'critical' && (
+            <div className="text-xs p-2 rounded bg-orange-50 text-orange-700 border border-orange-200">
+              ⚠️ Ce batch périme dans <strong>{peremptionStatus.days} j</strong>. Vérifiez l'opportunité du transfert.
+            </div>
+          )}
+          {srcLot && peremptionStatus.kind === 'warning' && (
+            <div className="text-xs p-2 rounded bg-yellow-50 text-yellow-700 border border-yellow-200">
+              ⓘ Ce batch périme dans {peremptionStatus.days} j.
+            </div>
+          )}
+
+          {/* Quantité */}
+          {srcLot && (
+            <div>
+              <label className="label">Quantité à transférer * <span className="font-normal text-gray-400">(max {maxQty})</span></label>
+              <input type="number" className="input" min={1} max={maxQty}
+                value={qty} onChange={e => setQty(Math.min(maxQty, Math.max(1, parseInt(e.target.value) || 1)))} />
+            </div>
+          )}
+
+          {/* Destination */}
+          <div>
+            <label className="label">Lot destination *</label>
+            <select className="select" value={destLotId}
+              onChange={e => { setDestLotId(e.target.value); setDestPochetteId(''); }}>
+              <option value="">Choisir un lot…</option>
+              {lotsData.map(l => (
+                <option key={l.id} value={l.id}>{l.nom}</option>
+              ))}
+            </select>
+          </div>
+
+          {destLotId && (
+            <div>
+              <label className="label">Pochette *</label>
+              <select className="select" value={destPochetteId}
+                onChange={e => setDestPochetteId(e.target.value)}>
+                <option value="">Choisir une pochette…</option>
+                {pochettes.map(p => (
+                  <option key={p.id} value={p.id}>{p.nom}</option>
+                ))}
+              </select>
+              {pochettes.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1">Ce lot n'a pas encore de pochettes.</p>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-2">
+            <button className="btn-secondary" onClick={onClose}>Annuler</button>
+            <button className="btn-primary" disabled={!canSubmit || loading}
+              onClick={() => setStep('confirm')}>
+              Suivant →
+            </button>
+          </div>
+        </>
       )}
 
-      <div className="flex gap-2 justify-end pt-2">
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={!canSubmit || loading}
-          onClick={() => onTransfer({ stock, tiroirId, srcLot, qty, destPochetteId })}>
-          {loading ? 'Transfert…' : '→ Transférer'}
-        </button>
-      </div>
+      {step === 'confirm' && srcLot && destLot && destPochette && (
+        <>
+          <p className="text-sm text-gray-700">Confirmez le transfert :</p>
+          <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm space-y-1">
+            <div><span className="text-gray-500">Article :</span> <strong>{stock.article.nom}</strong></div>
+            <div><span className="text-gray-500">Batch :</span> {srcLot.label || '(sans label)'}{srcLot.date_peremption ? ` — exp. ${new Date(srcLot.date_peremption).toLocaleDateString('fr-FR')}` : ''}</div>
+            <div><span className="text-gray-500">Quantité :</span> <strong>{qty}</strong> unité{qty > 1 ? 's' : ''}</div>
+            <div className="text-gray-400">↓</div>
+            <div><span className="text-gray-500">Destination :</span> {destLot.nom} <span className="text-gray-400">›</span> {destPochette.nom}</div>
+          </div>
+          {peremptionStatus.kind === 'critical' && (
+            <p className="text-xs text-orange-700">⚠️ Rappel : batch périme dans {peremptionStatus.days} j.</p>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <button className="btn-secondary" onClick={() => setStep('form')} disabled={loading}>← Modifier</button>
+            <button className="btn-primary" disabled={loading}
+              onClick={() => onTransfer({ stock, tiroirId, srcLot, qty, destPochetteId })}>
+              {loading ? 'Transfert…' : '✓ Confirmer le transfert'}
+            </button>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
@@ -1160,85 +1219,33 @@ export default function Armoire() {
     }
   };
 
-  // ── Handler transfert ───────────────────────────────────────────────────
-  const handleTransfer = async ({ stock, tiroirId, srcLot, qty, destPochetteId }) => {
+  // ── Handler transfert (atomique côté serveur) ──────────────────────────
+  const handleTransfer = async ({ stock, tiroirId, srcLot, qty, destPochetteId, allowExpired = false }) => {
     setSaving(true);
-
-    const oldTiroirLots = stock.lots || [];
-    const oldTiroirQty  = stock.quantite_actuelle || 0;
-
     try {
-      // 1. Réduire le stock tiroir
-      const newTiroirLots = oldTiroirLots
-        .map(l =>
-          l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-            ? { ...l, quantite: l.quantite - qty }
-            : l
-        )
-        .filter(l => l.quantite > 0);
-      const newTiroirQty = newTiroirLots.reduce((s, l) => s + (l.quantite || 0), 0);
-      await upsertStock(tiroirId, stock.article.id, { quantite_actuelle: newTiroirQty, lots: newTiroirLots });
-
-      // 2. Ajouter au stock pochette (fusionner le lot)
-      try {
-        const pochette = lotsData.flatMap(l => l.pochettes || []).find(p => p.id === destPochetteId);
-        const existingStock = (pochette?.stocks || []).find(s => s.article_id === stock.article.id);
-        const existingLots  = existingStock?.lots || [];
-
-        const existingQtyBase = existingStock
-          ? Math.max(
-              existingStock.quantite_actuelle || 0,
-              existingLots.reduce((s, l) => s + (l.quantite || 0), 0)
-            )
-          : 0;
-
-        const existingIdx = existingLots.findIndex(
-          l => l.label === srcLot.label && l.date_peremption === srcLot.date_peremption
-        );
-        let newPochetteLots;
-        if (existingIdx >= 0) {
-          newPochetteLots = existingLots.map((l, i) =>
-            i === existingIdx ? { ...l, quantite: (l.quantite || 0) + qty } : l
-          );
-        } else {
-          newPochetteLots = [
-            ...existingLots,
-            {
-              label: srcLot.label || '',
-              date_peremption: srcLot.date_peremption || null,
-              quantite: Number(qty),
-            },
-          ];
-        }
-
-        const newLotsTotal  = newPochetteLots.reduce((s, l) => s + (l.quantite || 0), 0);
-        const newPochetteQty = existingLots.length === 0 && existingQtyBase > 0
-          ? existingQtyBase + Number(qty)
-          : newLotsTotal;
-
-        await apiClient.put(`/lots/pochettes/${destPochetteId}/stock/${stock.article.id}`, {
-          quantite_actuelle: newPochetteQty,
-          lots: newPochetteLots,
-        });
-      } catch (e2) {
-        // Rollback étape 1
-        try {
-          await upsertStock(tiroirId, stock.article.id, {
-            quantite_actuelle: oldTiroirQty,
-            lots: oldTiroirLots,
-          });
-        } catch (_) { /* ignore */ }
-        throw new Error(
-          `Impossible d'ajouter au lot : ${e2.response?.data?.error || e2.message || 'Erreur réseau'}. Stock pharmacie restauré.`
-        );
-      }
-
+      await apiClient.post(`/lots/pochettes/${destPochetteId}/transfer-from-tiroir`, {
+        tiroir_id: tiroirId,
+        article_id: stock.article.id,
+        lot_label: srcLot.label || '',
+        lot_date_peremption: srcLot.date_peremption || null,
+        quantite: Number(qty),
+        allow_expired: allowExpired,
+      });
       showToast('Transfert effectué');
       closeModal();
       fetch();
       fetchLots();
     } catch (e) {
-      showToast(e.message || e.response?.data?.error || 'Erreur lors du transfert', 'error');
+      const code = e.response?.data?.code;
+      const msg = e.response?.data?.error || e.message || 'Erreur lors du transfert';
+      if (code === 'BATCH_EXPIRED') {
+        showToast('Batch périmé — transfert refusé. Annulez ce batch via la péremption.', 'error');
+      } else if (code === 'INSUFFICIENT_QTY') {
+        showToast('Quantité insuffisante en stock — refresh nécessaire.', 'error');
+        fetch();
+      } else {
+        showToast(msg, 'error');
+      }
     } finally {
       setSaving(false);
     }
